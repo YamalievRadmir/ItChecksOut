@@ -1,0 +1,789 @@
+ВСЁ СХОДИТСЯ! — ЕДИНАЯ ШПАРГАЛКА ПО РАЗВЕРТЫВАНИЮ
+Актуально для текущего проекта. Дата: 11.11.2026.
+
+СОДЕРЖАНИЕ
+  1. Что и где работает
+  2. Первая установка: Java и каталоги
+  3. Сборка JAR и первоначальный перенос базы с Windows
+  4. Файл .env и учетные записи
+  5. Сервис systemd
+  6. Новый сайт Nginx, DNS и HTTPS
+  7. Ollama и чат
+  8. База знаний и начальная настройка
+  9. КАЖДОЕ ОБНОВЛЕНИЕ: готовый порядок действий
+ 10. Резервные копии и восстановление
+ 11. Откат неудачного обновления
+ 12. Диагностика
+ 13. Краткая памятка и официальные источники
+
+Как читать команды:
+  [WINDOWS / POWERSHELL] — выполнять на локальном компьютере.
+  [UBUNTU / SSH] — выполнять на сервере после подключения по SSH.
+  Содержимое файлов копируется целиком в соответствующий редактор nano.
+  В nano: Ctrl+O, Enter — сохранить; Ctrl+X — выйти.
+  Значения вида ВАШ_ПАРОЛЬ и пути с ПОДСТАВЬТЕ заменяйте своими.
+  Не выполняйте первую установку заново при каждом обновлении: для этого есть раздел 9.
+
+======================================================================
+1. ЧТО И ГДЕ РАБОТАЕТ
+======================================================================
+Сервер: Ubuntu, 192.168.0.243. Пользователь: radmir.
+Приложение: /srv/sklad/sklad-app.jar.
+Рабочий каталог: /srv/sklad.
+Приложение слушает ТОЛЬКО 127.0.0.1:8081.
+Публичный адрес: https://sklad.agro-korma-shop.ru.
+Сервис: sklad.service.
+Конфигурация сервиса: /etc/systemd/system/sklad.service.
+Переменные сервиса: /srv/sklad/.env.
+База H2: /srv/sklad/data/sklad_db.mv.db.
+Автоматические бэкапы: /srv/sklad/backups/.
+Логи приложения: /srv/sklad/logs/application.log.
+Снимки перед обновлением: /srv/sklad/rollback/ДАТА-ВРЕМЯ/.
+Nginx: /etc/nginx/sites-available/sklad.agro-korma-shop.ru.
+Ollama: http://127.0.0.1:11434, модель gemma3:12b.
+
+Существующие проекты не перенастраиваем:
+  80/443 — уже работающий Nginx;
+  8080 — Open WebUI;
+  3000 — OpenHands;
+  11434 — Ollama.
+Не запускайте наше приложение на 8080. Встроенное значение 8080 переопределяет
+параметр --server.port=8081 в systemd.
+Доступ из домашней сети также идет через Nginx. Адрес 192.168.0.243:8081
+с другого компьютера не откроется, поскольку приложение привязано к loopback.
+Файловая H2 используется одним процессом приложения; продавцы подключаются к нему.
+
+======================================================================
+2. ПЕРВАЯ УСТАНОВКА: JAVA И КАТАЛОГИ
+======================================================================
+[WINDOWS / POWERSHELL]
+
+ssh radmir@192.168.0.243
+
+[UBUNTU / SSH]
+
+/usr/bin/java -version
+sudo ss -ltnp 'sport = :8081'
+
+Порт 8081 должен быть свободен. Не останавливайте неизвестный процесс,
+если он уже занимает этот порт: сначала выясните его назначение.
+Рекомендуем Java 21 — ею проверялась сборка; целевой байткод проекта Java 17.
+Если подходящей Java нет:
+
+sudo apt update
+sudo apt install openjdk-21-jre-headless
+/usr/bin/java -version
+
+На сервере работают другие Java-проекты. Перед изменением системной Java
+проверьте, какую версию и путь используют их сервисы. Команда ExecStart ниже
+использует именно /usr/bin/java.
+
+Создайте каталоги один раз:
+
+sudo install -d -o radmir -g radmir -m 0750 /srv/sklad
+sudo install -d -o radmir -g radmir -m 0750 /srv/sklad/data
+sudo install -d -o radmir -g radmir -m 0750 /srv/sklad/backups
+sudo install -d -o radmir -g radmir -m 0750 /srv/sklad/logs
+
+Проверка прав:
+
+ls -ld /srv/sklad /srv/sklad/data /srv/sklad/backups /srv/sklad/logs
+
+Каталоги data, backups и logs должны принадлежать radmir и быть доступны ему
+на запись. chmod 777 не нужен.
+
+======================================================================
+3. СБОРКА JAR И ПЕРВОНАЧАЛЬНЫЙ ПЕРЕНОС БАЗЫ С WINDOWS
+======================================================================
+3.1. Собрать production-JAR
+
+Перед сборкой остановите ЛОКАЛЬНЫЙ экземпляр приложения: Windows может
+блокировать работающий JAR в target и мешать mvn clean package.
+Серверный sklad на этом этапе останавливать не нужно.
+
+[WINDOWS / POWERSHELL]
+
+cd C:\Users\rajar\IdeaProjects\ItCheckOut
+mvn clean package
+
+Дождитесь BUILD SUCCESS. Нужен файл:
+  target\vse-skhoditsya-0.0.1-SNAPSHOT.jar
+Файл .jar.original не используйте.
+
+Если mvn не найден, можно использовать встроенный Maven IntelliJ:
+
+$env:JAVA_HOME = 'C:\Users\rajar\.jdks\ms-21.0.13.0.2'
+& 'C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.1\plugins\maven\lib\maven3\bin\mvn.cmd' clean package
+
+Эти пути относятся к текущему Windows-компьютеру. При обновлении IntelliJ/JDK
+уточните их. На сервер запуска Maven и Node устанавливать не требуется:
+готовый JAR уже содержит собранный frontend Vaadin.
+
+3.2. Остановить локальное приложение перед копированием H2
+
+Полностью остановите приложение в IntelliJ или тот процесс java -jar,
+которым оно запущено. Копировать файл работающей H2 обычным Copy-Item/scp нельзя.
+Если сервер уже используется, остановите sklad и не перезаписывайте серверную
+БД устаревшей Windows-копией: раздел 3 нужен для первоначального переноса.
+
+[WINDOWS / POWERSHELL]
+
+$backupDir = ".\migration-backup-$(Get-Date -Format yyyyMMdd-HHmmss)"
+New-Item -ItemType Directory -Path $backupDir
+Copy-Item .\data\sklad_db.mv.db $backupDir
+Get-FileHash .\data\sklad_db.mv.db -Algorithm SHA256
+
+Передайте файлы:
+
+scp .\target\vse-skhoditsya-0.0.1-SNAPSHOT.jar radmir@192.168.0.243:/srv/sklad/sklad-app.jar
+scp .\data\sklad_db.mv.db radmir@192.168.0.243:/srv/sklad/data/sklad_db.mv.db
+
+[UBUNTU / SSH]
+
+sha256sum /srv/sklad/data/sklad_db.mv.db
+
+Сравните SHA256 с Windows: значения должны совпасть.
+Сохраните копию ДО первого запуска новой версии:
+
+cp -p /srv/sklad/data/sklad_db.mv.db "/srv/sklad/backups/sklad_db.before-first-start.$(date +%Y%m%d-%H%M%S).mv.db"
+chmod 0600 /srv/sklad/data/sklad_db.mv.db
+chmod 0640 /srv/sklad/sklad-app.jar
+
+Переносится весь файл БД: товары, чеки, история, доставки, заметки, справочник,
+права, альтернативы, добавки и учетные записи, если они уже есть в этой БД.
+Файлы .lock.db и .trace.db переносить не нужно.
+Не запускайте приложение до копирования исходной базы, иначе оно создаст пустую.
+Если нужен чистый склад без тестовой истории, это отдельный сценарий —
+не удаляйте таблицы или базу в рамках обычного переноса.
+
+======================================================================
+4. ФАЙЛ .env И УЧЕТНЫЕ ЗАПИСИ
+======================================================================
+[UBUNTU / SSH]
+
+sudo nano /srv/sklad/.env
+
+Вставьте, заменив bootstrap-пароли на собственные:
+
+APP_BOOTSTRAP_ADMIN_PASSWORD='ВАШ_СИЛЬНЫЙ_ПАРОЛЬ_ADMIN'
+APP_BOOTSTRAP_SELLER_PASSWORD='ВАШ_ДРУГОЙ_СИЛЬНЫЙ_ПАРОЛЬ_SELLER'
+
+SERVER_ADDRESS=127.0.0.1
+SERVER_FORWARD_HEADERS_STRATEGY=native
+SERVER_SERVLET_SESSION_COOKIE_HTTP_ONLY=true
+SERVER_SERVLET_SESSION_COOKIE_SECURE=false
+
+SPRING_DATASOURCE_URL='jdbc:h2:file:/srv/sklad/data/sklad_db;DB_CLOSE_ON_EXIT=FALSE'
+SPRING_DATASOURCE_USERNAME=sa
+SPRING_DATASOURCE_PASSWORD=''
+SPRING_JPA_HIBERNATE_DDL_AUTO=update
+SPRING_H2_CONSOLE_ENABLED=false
+
+VAADIN_PRODUCTION_MODE=true
+APP_DEMO_DATA_ENABLED=false
+APP_DEMO_DATA_GENERATE=false
+APP_DEMO_DATA_RESET=false
+
+LOGGING_FILE_NAME=/srv/sklad/logs/application.log
+BACKUP_ZONE=Asia/Yekaterinburg
+TZ=Asia/Yekaterinburg
+
+OLLAMA_BASE_URL=http://127.0.0.1:11434
+OLLAMA_MODEL=gemma3:12b
+
+# Необязательно: уведомления о доставках.
+TELEGRAM_BOT_TOKEN=''
+TELEGRAM_CHAT_ID=''
+
+После сохранения:
+
+sudo chown root:root /srv/sklad/.env
+sudo chmod 0600 /srv/sklad/.env
+
+Правила:
+- Здесь строки ИМЯ=значение, без export. Не используйте Windows-переносы команд.
+- systemd читает этот файл через EnvironmentFile. Сам java -jar файл .env не читает.
+- COOKIE_SECURE=false нужен только для первоначальной проверки через HTTP.
+  После настройки HTTPS обязательно поменяйте его на true и перезапустите sklad.
+- Минимум bootstrap-пароля: 12 символов; максимум: 72 байта UTF-8.
+- Логины создаются как admin и seller. Стандартных admin/admin больше нет.
+- Если пользователь уже есть в перенесенной БД, bootstrap-пароль игнорируется.
+  Действует сохраненный пароль. Изменить его можно через интерфейс приложения.
+- После успешного входа удалите обе APP_BOOTSTRAP_* строки и перезапустите сервис.
+  Пароли сохраняются в БД как BCrypt-хеши и не сбрасываются при перезапуске.
+- Для перенесенной H2 укажите ее ДЕЙСТВУЮЩИЙ пароль. В локальной конфигурации он
+  пустой. Замена SPRING_DATASOURCE_PASSWORD не меняет пароль существующего файла.
+- Не включайте app.demo-data.reset/generate/enabled на production.
+- ddl-auto=update обновляет схему и добавляет таблицы связей; это не замена бэкапу.
+  Крупное обновление схемы сначала проверьте на отдельной копии базы.
+- Не копируйте локальный .env поверх серверного при каждом обновлении.
+
+======================================================================
+5. СЕРВИС SYSTEMD
+======================================================================
+[UBUNTU / SSH]
+
+sudo nano /etc/systemd/system/sklad.service
+
+Содержимое:
+
+[Unit]
+Description=Vse skhoditsya - warehouse application
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=radmir
+Group=radmir
+WorkingDirectory=/srv/sklad
+EnvironmentFile=/srv/sklad/.env
+ExecStart=/usr/bin/java -jar /srv/sklad/sklad-app.jar --server.port=8081
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=60
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=sklad
+
+[Install]
+WantedBy=multi-user.target
+
+Сохраните и выполните:
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now sklad
+sudo systemctl status sklad --no-pager
+sudo journalctl -u sklad -n 100 --no-pager
+curl -I http://127.0.0.1:8081/login
+sudo ss -ltnp 'sport = :8081'
+
+Ожидается HTTP 200 для /login и прослушивание 127.0.0.1:8081.
+В журнале должны быть Started SkladApplication и production mode Vaadin.
+Запуск приложения не означает, что Ollama уже проверен: он вызывается при вопросе.
+
+Если изменили только .env — достаточно restart sklad.
+Если изменили файл sklad.service — сначала daemon-reload, затем restart sklad.
+Не запускайте второй java -jar параллельно сервису на той же H2.
+
+======================================================================
+6. НОВЫЙ САЙТ NGINX, DNS И HTTPS
+======================================================================
+6.1. Добавить отдельный конфиг, не меняя текущие сайты
+
+[UBUNTU / SSH]
+
+sudo nginx -T 2>/dev/null | grep -n 'sklad.agro-korma-shop.ru'
+
+Если конфиг уже существует, редактируйте его, не создавайте второй server_name.
+Перед первым изменением сохраните текущие настройки Nginx:
+
+sudo cp -a /etc/nginx "/etc/nginx.before-sklad.$(date +%Y%m%d-%H%M%S)"
+sudo nano /etc/nginx/sites-available/sklad.agro-korma-shop.ru
+
+Содержимое НОВОГО файла:
+
+map $http_upgrade $sklad_connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+server {
+    listen 80;
+    server_name sklad.agro-korma-shop.ru;
+
+    access_log /var/log/nginx/sklad.access.log;
+    error_log /var/log/nginx/sklad.error.log;
+    client_max_body_size 20m;
+
+    location / {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header Forwarded "";
+
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $sklad_connection_upgrade;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_buffering off;
+    }
+}
+
+Этот пример рассчитан на прямое подключение клиента к вашему Nginx.
+При дополнительном внешнем прокси/CDN отдельно настройте доверенные адреса.
+map находится вне server: в стандартной Ubuntu sites-enabled включается внутри
+http-блока. Если конфиг подключается иначе, map поместите в http-блок nginx.conf.
+Не добавляйте default_server и не меняйте конфиги MyBudget/AnimalFeed.
+WebSocket-заголовки нужны Vaadin Push: чату и результатам фонового импорта.
+
+Включите сайт ОДИН РАЗ:
+
+sudo ln -s /etc/nginx/sites-available/sklad.agro-korma-shop.ru /etc/nginx/sites-enabled/sklad.agro-korma-shop.ru
+sudo nginx -t
+
+Если nginx -t завершился успешно:
+
+sudo systemctl reload nginx
+curl -I -H 'Host: sklad.agro-korma-shop.ru' http://127.0.0.1/login
+
+Если ln сообщает File exists, проверьте существующую ссылку, не создавайте дубль.
+Если nginx -t нашел ошибку, исправьте ее ДО reload. Рабочие сайты не останавливайте.
+Новый server-блок использует существующий Nginx на 80/443, это не конфликт портов.
+
+6.2. DNS и доступ из домашней сети
+
+Для интернета A-запись sklad.agro-korma-shop.ru должна указывать на внешний
+публичный IP роутера. Уже работающий проброс 80/443 на 192.168.0.243 сохраняется.
+192.168.0.243 — внутренний адрес, его нельзя использовать как публичную A-запись.
+Если используется IPv6/AAAA, он также должен вести на этот сервер.
+
+Для локальной проверки можно добавить на Windows в файл
+C:\Windows\System32\drivers\etc\hosts (редактор запустить от администратора):
+
+192.168.0.243 sklad.agro-korma-shop.ru
+
+Тогда адрес откроется внутри домашней сети до настройки публичного DNS.
+Запись hosts действует только на этом компьютере и не подтверждает домен для TLS.
+
+6.3. HTTPS
+
+Используйте уже принятый на сервере способ получения сертификатов.
+Если Certbot с nginx-плагином уже установлен:
+
+sudo certbot --nginx -d sklad.agro-korma-shop.ru
+
+Выберите перенаправление HTTP на HTTPS, если предлагается выбор.
+Certbot изменяет конфигурацию Nginx; сначала сделайте копию, как в разделе 6.1.
+Не устанавливайте второй экземпляр Certbot поверх существующей установки.
+Если Certbot отсутствует, выберите способ установки для вашей Ubuntu по
+официальной инструкции https://certbot.eff.org/instructions .
+Для HTTP-проверки домен должен быть доступен из интернета на порту 80.
+Для закрытого LAN/CGNAT используйте DNS-проверку или существующий сертификат,
+который уже покрывает этот поддомен. Предупреждения сертификата не обходите.
+
+Проверка:
+
+sudo nginx -t
+sudo systemctl reload nginx
+curl -I https://sklad.agro-korma-shop.ru/login
+
+После успешного HTTPS:
+
+sudo nano /srv/sklad/.env
+
+Замените:
+  SERVER_SERVLET_SESSION_COOKIE_SECURE=false
+на:
+  SERVER_SERVLET_SESSION_COOKIE_SECURE=true
+
+Затем:
+
+sudo systemctl restart sklad
+
+Входите через https://sklad.agro-korma-shop.ru, не через HTTP.
+Для проверки backend через curl /login атрибут Secure не мешает.
+Продление сертификатов, если используется Certbot:
+
+sudo certbot renew --dry-run
+
+======================================================================
+7. OLLAMA И ЧАТ
+======================================================================
+Ollama уже работает на этом сервере. Переустанавливать его, менять порт 11434
+или перенастраивать Open WebUI для нашего приложения не нужно.
+
+[UBUNTU / SSH]
+
+curl --fail http://127.0.0.1:11434/api/tags
+ollama list
+
+Если gemma3:12b отсутствует:
+
+ollama pull gemma3:12b
+
+Модель требует ресурсов; используйте установленную модель с учетом памяти
+сервера и других ИИ-проектов. Для qwen3:14b поменяйте в .env:
+
+OLLAMA_MODEL=qwen3:14b
+
+Скачайте ее, если отсутствует:
+
+ollama pull qwen3:14b
+
+После изменения .env:
+
+sudo systemctl restart sklad
+
+Проверка генерации напрямую (может занять время при первой загрузке модели):
+
+curl --fail-with-body --max-time 180 http://127.0.0.1:11434/api/generate \
+  -H 'Content-Type: application/json' \
+  --data '{"model":"gemma3:12b","prompt":"Ответь кратко по-русски: ты работаешь?","stream":false}'
+
+Если выбрали другую модель, замените model в тестовом JSON.
+В приложении откройте кнопку чата и задайте вопрос о кормлении.
+Контекстом служат все статьи справочника животных на момент каждого вопроса.
+История сообщений видна в виджете, но предыдущая переписка модели не передается.
+
+Таймаут подключения приложения — 5 секунд; ответа — 180 секунд.
+Пул — 2 фоновые задачи, очередь — до 4. При недоступности ИИ склад продолжает
+работать, чат показывает понятное сообщение; ошибка попадает в журнал и ErrorLog.
+Порт Ollama наружу публиковать не нужно.
+
+Локальный Windows и серверный localhost — разные компьютеры.
+Для проверки чата на Windows через серверный Ollama можно открыть туннель:
+
+[WINDOWS / POWERSHELL, отдельное окно]
+
+ssh -N -L 11434:127.0.0.1:11434 radmir@192.168.0.243
+
+Оставьте это окно открытым и работайте в http://localhost:8081.
+На Ubuntu, где приложение и Ollama на одном хосте, туннель не нужен.
+
+======================================================================
+8. БАЗА ЗНАНИЙ И НАЧАЛЬНАЯ НАСТРОЙКА
+======================================================================
+После входа как ADMIN:
+  Настройки → База знаний → Загрузить базу знаний с сайта.
+Дождитесь уведомления «Загружено X статей».
+
+Сайт https://agro-korma-shop.ru/ — JavaScript-приложение. Импортер читает
+публичный /api/content (раздел FAQ); также есть разбор обычного HTML через Jsoup.
+На момент разработки на сайте было 86 записей FAQ, количество может измениться.
+Дубли определяются по заголовку без учета регистра и лишних пробелов.
+Ручные правки существующих статей не перезаписываются.
+«Загружено 0 статей» при повторном импорте может быть нормальным результатом.
+После импорта откройте «Справочник животных»: вкладки по видам, аккордеон,
+поиск по словам «вес», «понос» и т. п. ИИ увидит статьи в следующем вопросе.
+Для импорта нужен исходящий HTTPS-доступ сервера к сайту.
+Если статьи уже были импортированы в перенесенной БД, повторять импорт не нужно.
+
+Альтернативы и добавки:
+  При запуске автоматическое заполнение выполняется, только если alternativeProducts
+  пусты у ВСЕХ товаров. Если найдена хотя бы одна настроенная альтернатива,
+  автозаполнение целиком пропускается. Ручные связи не перезаписываются.
+  Настройки доступны ADMIN в карточке товара. Не удаляйте связи ради повторного
+  запуска на рабочей БД — исправляйте их через интерфейс.
+
+Учетные записи:
+  Проверьте вход admin и seller. После проверки удалите bootstrap-пароли из .env.
+
+Заказы сайта:
+  POST /api/public/delivery-order публичен по заданию и создает реальные заявки.
+  Через Nginx он доступен на том же поддомене; дополнительных портов не требуется.
+  Настройка формы сайта описана в SITE_ORDERS_API.md. Развертывание JAR само по себе
+  не меняет форму на agro-korma-shop.ru. Запросы для проверки создают реальные записи.
+
+======================================================================
+9. КАЖДОЕ ОБНОВЛЕНИЕ: ГОТОВЫЙ ПОРЯДОК ДЕЙСТВИЙ
+======================================================================
+Обычное обновление меняет ТОЛЬКО JAR. Не переносите заново локальную H2,
+не заменяйте серверный .env и не пересоздавайте Nginx/systemd без необходимости.
+Если изменилась версия/имя артефакта в pom.xml, скорректируйте исходный путь JAR.
+
+9.1. Подготовить новую сборку и передать ее под ВРЕМЕННЫМ именем
+
+Если проект запущен локально из JAR в target, сначала остановите этот локальный
+процесс, чтобы Windows не блокировал файлы сборки. Сервер пока продолжает работать.
+
+[WINDOWS / POWERSHELL]
+
+cd C:\Users\rajar\IdeaProjects\ItCheckOut
+mvn clean package
+
+Продолжайте только после BUILD SUCCESS и успешных тестов.
+
+Get-FileHash .\target\vse-skhoditsya-0.0.1-SNAPSHOT.jar -Algorithm SHA256
+scp .\target\vse-skhoditsya-0.0.1-SNAPSHOT.jar radmir@192.168.0.243:/srv/sklad/sklad-app.jar.new
+ssh radmir@192.168.0.243
+
+[UBUNTU / SSH]
+
+sha256sum /srv/sklad/sklad-app.jar.new
+df -h /srv/sklad
+
+Сравните SHA256. Убедитесь, что хватает места для копии JAR и БД.
+Не загружайте новую сборку поверх работающего sklad-app.jar.
+
+9.2. Завершить текущие операции и остановить приложение
+
+Предупредите продавцов. Завершите продажи или сохраните чеки кнопкой
+«Отложить чек». Активная корзина живет в HTTP-сессии: переходы по разделам ее
+сохраняют, но перезапуск приложения/завершение сессии — нет.
+Отложенные чеки хранятся в БД. Настройки незавершенной формы также не гарантируют
+сохранение после перезапуска.
+
+sudo systemctl stop sklad
+sudo systemctl is-active sklad
+sudo ss -ltnp 'sport = :8081'
+
+Ожидается inactive и отсутствие слушателя 8081. Не копируйте H2 до остановки.
+Если состояние failed вместо inactive, изучите журнал и убедитесь, что процесс
+действительно завершен.
+
+9.3. Создать снимок старой версии, БД и конфигурации
+
+Следующие команды выполните в ОДНОЙ SSH-сессии, чтобы сохранить переменные:
+
+stamp=$(date +%Y%m%d-%H%M%S)
+releaseBackup="/srv/sklad/rollback/$stamp"
+sudo install -d -m 0700 /srv/sklad/rollback
+sudo install -d -m 0700 "$releaseBackup"
+sudo cp -p /srv/sklad/sklad-app.jar "$releaseBackup/sklad-app.jar"
+sudo cp -p /srv/sklad/data/sklad_db.mv.db "$releaseBackup/sklad_db.mv.db"
+sudo cp -p /srv/sklad/.env "$releaseBackup/.env"
+sudo cp -p /etc/systemd/system/sklad.service "$releaseBackup/sklad.service"
+sudo ls -lh "$releaseBackup"
+printf 'Снимок перед обновлением: %s\n' "$releaseBackup"
+
+Продолжайте только если все копирования успешны. Запишите путь снимка.
+Каталог закрыт от обычных пользователей: .env содержит секреты.
+Эти снимки не удаляются встроенной 30-дневной очисткой ZIP-архивов;
+контролируйте их объем отдельно.
+
+9.4. Заменить JAR и запустить
+
+sudo install -o radmir -g radmir -m 0640 /srv/sklad/sklad-app.jar.new /srv/sklad/sklad-app.jar
+sudo systemctl start sklad
+sudo systemctl status sklad --no-pager
+sudo journalctl -u sklad -n 100 --no-pager
+
+Дождитесь успешного запуска (обычно несколько десятков секунд):
+
+curl -I http://127.0.0.1:8081/login
+curl -I https://sklad.agro-korma-shop.ru/login
+
+Проверьте в браузере:
+  - вход admin/seller и доступ по ролям;
+  - товары и остатки;
+  - историю продаж и доставок;
+  - кассу, альтернативы и добавки без проведения фиктивной продажи;
+  - справочник и чат, если они менялись.
+После изменения frontend нажмите Ctrl+F5. Выбор темы хранится в текущей сессии.
+Системный restart при обновлении JAR сам по себе не требует reload Nginx.
+
+Если все работает, можно удалить временную копию новой сборки:
+
+rm /srv/sklad/sklad-app.jar.new
+
+Снимок предыдущей версии пока сохраните. Если запуск неуспешен — разделы 11 и 12.
+Не выполняйте повторный перенос Windows-БД поверх серверных продаж.
+
+======================================================================
+10. РЕЗЕРВНЫЕ КОПИИ И ВОССТАНОВЛЕНИЕ
+======================================================================
+10.1. Автоматические и ручные копии
+
+При работающем приложении ежедневно в 02:00 по BACKUP_ZONE создается
+согласованный ZIP через команду H2 BACKUP TO:
+  /srv/sklad/backups/backup_YYYY-MM-DD_HH-mm.zip
+
+Архивы этого формата старше 30 дней удаляются после успешного нового бэкапа.
+Если приложение выключено в 02:00, такой запуск будет пропущен.
+Бэкап поддерживает только H2. Для другой СУБД нужен отдельный механизм.
+Ручной запуск:
+  ADMIN → Настройки → Система → Создать бэкап сейчас.
+
+[UBUNTU / SSH]
+
+ls -lh /srv/sklad/backups
+
+Проверяйте, что свежие архивы действительно появляются.
+ZIP содержит БД, но НЕ заменяет копии JAR, .env, сертификатов и конфигов.
+Обычное cp файла .mv.db допустимо только при полностью остановленном приложении.
+Для работы без остановки используйте встроенный механизм бэкапа.
+
+10.2. Хранить копии вне сервера
+
+[WINDOWS / POWERSHELL]
+
+New-Item -ItemType Directory -Force .\server-backups
+scp 'radmir@192.168.0.243:/srv/sklad/backups/backup_*.zip' .\server-backups\
+
+Файлы БД содержат историю, персональные данные и хеши паролей.
+Храните их в закрытом месте. Потеря диска сервера не должна уничтожить все копии.
+
+10.3. Восстановление из ZIP
+
+Сначала выберите архив и проверьте его содержимое:
+
+[UBUNTU / SSH]
+
+unzip -l /srv/sklad/backups/ПОДСТАВЬТЕ_ИМЯ_АРХИВА.zip
+unzip -t /srv/sklad/backups/ПОДСТАВЬТЕ_ИМЯ_АРХИВА.zip
+
+Если unzip отсутствует: sudo apt install unzip.
+Планируйте восстановление до возобновления работы продавцов: изменения после
+момента выбранного бэкапа в восстановленную БД не попадут.
+
+sudo systemctl stop sklad
+sudo systemctl is-active sklad
+
+Сохраните текущий файл БД, даже если он выглядит поврежденным:
+
+sudo cp -p /srv/sklad/data/sklad_db.mv.db "/srv/sklad/backups/sklad_db.before-restore.$(date +%Y%m%d-%H%M%S).mv.db"
+
+Извлеките архив в отдельный временный каталог, не поверх рабочей data:
+
+restoreDir=$(mktemp -d)
+unzip /srv/sklad/backups/ПОДСТАВЬТЕ_ИМЯ_АРХИВА.zip -d "$restoreDir"
+find "$restoreDir" -type f -name '*.mv.db'
+
+По выведенному пути выберите именно файл sklad_db.mv.db. Структура путей
+в архиве может отличаться. Замените следующий исходный путь на найденный:
+
+sudo install -o radmir -g radmir -m 0600 /ПОДСТАВЬТЕ_ПОЛНЫЙ_ПУТЬ/sklad_db.mv.db /srv/sklad/data/sklad_db.mv.db
+sudo systemctl start sklad
+sudo journalctl -u sklad -n 100 --no-pager
+curl -I http://127.0.0.1:8081/login
+
+Проверьте содержимое приложения. Для старой схемы может требоваться совместимый
+JAR; используйте соответствующую пару JAR + БД из снимка перед обновлением.
+Не считайте восстановление проверенным только потому, что ZIP успешно распакован:
+нужны успешный запуск приложения и проверка данных.
+
+======================================================================
+11. ОТКАТ НЕУДАЧНОГО ОБНОВЛЕНИЯ
+======================================================================
+Если новая версия не запускается и после обновления еще не было новых продаж:
+  остановите сервис и верните согласованную пару старый JAR + старая БД.
+Просто старый JAR может быть несовместим со схемой, измененной ddl-auto=update.
+
+[UBUNTU / SSH]
+
+sudo systemctl stop sklad
+sudo ls -1 /srv/sklad/rollback
+
+Выберите сохраненный каталог. Впишите РЕАЛЬНУЮ дату из списка:
+
+releaseBackup=/srv/sklad/rollback/ПОДСТАВЬТЕ_ДАТУ_И_ВРЕМЯ
+sudo ls -lh "$releaseBackup"
+
+Перед откатом сохраните текущую БД:
+
+sudo cp -p /srv/sklad/data/sklad_db.mv.db "/srv/sklad/backups/sklad_db.before-rollback.$(date +%Y%m%d-%H%M%S).mv.db"
+
+Восстановите:
+
+sudo install -o radmir -g radmir -m 0640 "$releaseBackup/sklad-app.jar" /srv/sklad/sklad-app.jar
+sudo install -o radmir -g radmir -m 0600 "$releaseBackup/sklad_db.mv.db" /srv/sklad/data/sklad_db.mv.db
+sudo install -o root -g root -m 0600 "$releaseBackup/.env" /srv/sklad/.env
+sudo install -o root -g root -m 0644 "$releaseBackup/sklad.service" /etc/systemd/system/sklad.service
+sudo systemctl daemon-reload
+sudo systemctl start sklad
+sudo journalctl -u sklad -n 100 --no-pager
+curl -I http://127.0.0.1:8081/login
+
+Восстановление старой БД отменяет ВСЕ изменения после снимка. Если продавцы
+уже успели провести новые продажи, остановитесь и спланируйте перенос этих
+операций; не затирайте их автоматическим откатом.
+Nginx при обычном обновлении JAR не менялся, откатывать другие сайты не нужно.
+
+======================================================================
+12. ДИАГНОСТИКА
+======================================================================
+Сервис и логи:
+
+sudo systemctl status sklad --no-pager
+sudo journalctl -u sklad -n 150 --no-pager
+sudo journalctl -u sklad -f
+tail -f /srv/sklad/logs/application.log
+
+Выход из просмотра live-лога: Ctrl+C (это не останавливает приложение).
+Файловые логи: ротация по 10 MB, до 30 дней, лимит архивов 1 GB.
+Просмотр ошибок и аудита также доступен ADMIN в настройках приложения.
+
+Nginx и порты:
+
+sudo nginx -t
+sudo tail -n 80 /var/log/nginx/sklad.error.log
+sudo ss -ltnp 'sport = :8081'
+curl -I http://127.0.0.1:8081/login
+
+Типовые ситуации:
+
+- 502 Bad Gateway:
+  Сначала проверьте sklad и curl к 127.0.0.1:8081. Затем proxy_pass в новом конфиге.
+  Не меняйте порт Open WebUI и не перезапускайте все проекты.
+
+- После перезапуска нет товаров/истории:
+  Проверьте абсолютный SPRING_DATASOURCE_URL и наличие нужного .mv.db.
+  Обычно причина — другой путь к БД. Не импортируйте демоданные для исправления.
+
+- Database may be already in use / порт занят:
+  Возможно, запущен второй java -jar. Определите процесс по порту/журналу.
+  Не удаляйте файлы блокировок работающей базы.
+
+- Wrong user name or password (H2):
+  В .env должен быть действующий пароль файла БД, а не произвольный новый.
+
+- Set APP_BOOTSTRAP_ADMIN_PASSWORD for first startup:
+  В подключенной БД еще нет admin. Проверьте путь к БД; если база действительно
+  новая, задайте bootstrap-пароль, создайте пользователя и потом удалите переменную.
+
+- Не удается войти в браузере через HTTP после включения HTTPS:
+  Используйте HTTPS. Secure-cookie специально не передается по HTTP.
+
+- Чат не отвечает / «ИИ недоступен»:
+  Проверьте /api/tags, ollama list, имя модели и прямой /api/generate.
+  OLLAMA_BASE_URL для системного JAR на этом же сервере — 127.0.0.1:11434.
+  Если переносите приложение в Docker, loopback будет относиться к контейнеру:
+  эта инструкция рассчитана на systemd, а не Docker.
+
+- Индикатор загрузки не исчезает, результат приходит только после клика:
+  Проверьте проксирование WebSocket (Upgrade/Connection, HTTP/1.1) и журнал.
+  Не отключайте защиту Spring Security для устранения этой ошибки.
+
+- Импорт статей не работает:
+  Серверу нужен HTTPS-доступ к agro-korma-shop.ru и его /api/content.
+  Проверьте ErrorLog. Повторный импорт существующих заголовков дает 0 новых статей.
+
+- Старый внешний вид:
+  Нажмите Ctrl+F5 и проверьте, что установлен именно новый production-JAR.
+
+======================================================================
+13. КРАТКАЯ ПАМЯТКА И ОФИЦИАЛЬНЫЕ ИСТОЧНИКИ
+======================================================================
+Каждое обновление:
+  BUILD SUCCESS → scp в .jar.new → завершить/отложить чеки → stop sklad →
+  копия JAR + БД + .env → заменить JAR → start sklad → логи → curl → браузер.
+
+Что сохранять всегда:
+  data/sklad_db.mv.db, серверный .env, предыдущий JAR, конфиги systemd/Nginx,
+  свежую резервную копию вне сервера.
+
+Что не требуется при обычном обновлении:
+  повторная установка Java, перенос Windows-БД, пересоздание пользователей,
+  повторный выпуск сертификата, перенастройка чужих сайтов и открытие 8081 наружу.
+
+Основные адреса:
+  Приложение: https://sklad.agro-korma-shop.ru
+  Backend на сервере: http://127.0.0.1:8081/login
+  Ollama: http://127.0.0.1:11434/api/tags
+  Источник статей: https://agro-korma-shop.ru/api/content
+
+Официальные инструкции:
+  systemd EnvironmentFile:
+  https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html
+  WebSocket в Nginx:
+  https://nginx.org/en/docs/http/websocket.html
+  Certbot для вашего дистрибутива:
+  https://certbot.eff.org/instructions
+  Ollama API:
+  https://github.com/ollama/ollama/blob/main/docs/api.md
+  Production-сборка Vaadin:
+  https://vaadin.com/docs/latest/building-apps/production/build
+
+Дополнительная спецификация заказов сайта: SITE_ORDERS_API.md.
+Все основные действия по выкладке собраны в этом файле; старые инструкции
+PRODUCTION_REVIEW.md и OLLAMA_SETUP.md для обычного обновления открывать не нужно.
