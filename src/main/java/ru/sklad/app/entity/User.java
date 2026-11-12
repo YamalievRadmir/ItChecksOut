@@ -18,6 +18,8 @@ public class User {
     @Column(nullable = false)
     private String role;
     private boolean enabled = true;
+    @Column(length = 40)
+    private String themePreference;
     @ManyToOne
     @JoinColumn(name = "shop_id")
     private Shop shop;

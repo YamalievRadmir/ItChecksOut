@@ -27,6 +27,9 @@ public class PermissionConfiguration {
     VaadinServiceInitListener permissionNavigation(PermissionService permissions) {
         return event -> event.getSource().addUIInitListener(init -> init.getUI().addBeforeEnterListener(enter -> {
             String route = enter.getLocation().getPath();
+            if (permissions.isSuperAdmin() && PermissionService.VIEWS.containsKey(route.split("/")[0])) {
+                enter.forwardTo("super-admin"); return;
+            }
             if (PermissionService.VIEWS.containsKey(route) && !permissions.canAccess(route)) {
                 enter.rerouteTo("no-access");
             }

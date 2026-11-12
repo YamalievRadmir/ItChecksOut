@@ -58,7 +58,7 @@ public class SecurityConfig {
             // Match the management route before the shop-specific routes.
             authorize.requestMatchers("/super-admin", "/super-admin/**").hasRole("SUPER_ADMIN");
             authorize.requestMatchers("/login", "/login/**").permitAll();
-            authorize.requestMatchers("/manifest.webmanifest", "/sw.js", "/offline.html",
+            authorize.requestMatchers("/favicon.png", "/manifest.webmanifest", "/sw.js", "/offline.html",
                     "/icons/selkorm-192.png", "/icons/selkorm-512.png").permitAll();
             authorize.requestMatchers("/print-receipt/**").access((authentication, context) ->
                     new org.springframework.security.authorization.AuthorizationDecision(
@@ -72,6 +72,21 @@ public class SecurityConfig {
         });
         http.sessionManagement(session -> session.sessionFixation(fixation -> fixation.newSession()));
         http.with(VaadinSecurityConfigurer.vaadin(), configurer -> configurer.loginView(LoginView.class));
+        http.formLogin(form -> form.defaultSuccessUrl("/login?success", true));
+        http.addFilterBefore(new org.springframework.web.filter.OncePerRequestFilter() {
+            @Override
+            protected void doFilterInternal(jakarta.servlet.http.HttpServletRequest request,
+                    jakarta.servlet.http.HttpServletResponse response, jakarta.servlet.FilterChain chain)
+                    throws jakarta.servlet.ServletException, java.io.IOException {
+                String path = request.getRequestURI().substring(request.getContextPath().length());
+                boolean business = ru.sklad.app.service.PermissionService.VIEWS.keySet().stream()
+                        .anyMatch(route -> path.equals("/" + route) || path.startsWith("/" + route + "/"));
+                if (permissions.isSuperAdmin() && business && "GET".equals(request.getMethod())) {
+                    response.sendRedirect(request.getContextPath() + "/super-admin"); return;
+                }
+                chain.doFilter(request, response);
+            }
+        }, org.springframework.security.web.access.intercept.AuthorizationFilter.class);
         return http.build();
     }
 

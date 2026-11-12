@@ -11,7 +11,8 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ProductRepository extends ShopRepositoryBase<Product, Long> {
-    @Override
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN') and #p0.id == T(ru.sklad.app.util.SecurityUtils).currentShop().id")
+    default void deleteAllByShop(ru.sklad.app.entity.Shop shop) { deleteAll(findAllByShop(shop)); }    @Override
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = "shop")
     @Query("select p from Product p where p.shop = :shop and p.shop = :#{T(ru.sklad.app.util.SecurityUtils).currentShop()}")
     List<Product> findAllByShop(@Param("shop") ru.sklad.app.entity.Shop shop);

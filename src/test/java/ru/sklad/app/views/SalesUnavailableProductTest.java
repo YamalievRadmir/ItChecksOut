@@ -24,7 +24,7 @@ class SalesUnavailableProductTest {
         Method method=instance.getClass().getDeclaredMethod(name,types); method.setAccessible(true); return method.invoke(instance,args);
     }
     @Test void unavailableItemStaysWhenNoReplacementExists() throws Exception {
-        UI.setCurrent(new UI());
+        UI ui = new UI(); UI.setCurrent(ui);
         try {
             var repository=mock(ProductRepository.class); var alternatives=mock(ProductAlternativeService.class);
             Product p=product(1,"Нет в наличии",0); when(repository.findById(1L)).thenReturn(Optional.of(p));
@@ -33,10 +33,10 @@ class SalesUnavailableProductTest {
             Map<?,?> cart=(Map<?,?>)field(view,"cart"); assertEquals(1,cart.size());
             assertEquals(BigDecimal.ONE,field(cart.get(1L),"quantity"));
             assertNull(field(view,"alternativeDialog"));
-        } finally { UI.setCurrent(null); }
+        } finally { java.lang.ref.Reference.reachabilityFence(ui); UI.setCurrent(null); }
     }
     @Test void sameReplacementDialogRetainsRequestOnCancelAndReplacesItOnConfirmation() throws Exception {
-        UI.setCurrent(new UI());
+        UI ui = new UI(); UI.setCurrent(ui);
         try {
             var repository=mock(ProductRepository.class); var alternatives=mock(ProductAlternativeService.class);
             Product source=product(1,"Нет в наличии",0), replacement=product(2,"Замена",5);
@@ -48,6 +48,6 @@ class SalesUnavailableProductTest {
             Map<?,?> cart=(Map<?,?>)field(view,"cart"); assertTrue(cart.containsKey(1L));
             assertEquals(true,call(view,"replaceShortage",new Class<?>[]{Long.class,Long.class,ProductRepository.class},1L,2L,repository));
             assertFalse(cart.containsKey(1L)); assertEquals(BigDecimal.ONE,field(cart.get(2L),"quantity"));
-        } finally { UI.setCurrent(null); }
+        } finally { java.lang.ref.Reference.reachabilityFence(ui); UI.setCurrent(null); }
     }
 }

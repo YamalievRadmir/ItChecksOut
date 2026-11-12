@@ -46,8 +46,15 @@ class SuperAdminServiceTest {
   }
   em.flush(); assertEquals(2,service.users().size());assertEquals(2,service.audit(0).size());assertEquals(2,service.errors(0).size());
  }
- @Test void shopAdminCannotReadGlobalDataOrEditUsers() {
+ @Test void resetsPasswordAndBlocksWithoutDeletingAccount() {
+  role("SUPER_ADMIN"); User user=user("target",shop("Target"));
+  String password=service.resetPassword(user.getId()); em.clear();
+  assertEquals(16,password.length()); assertTrue(encoder.matches(password,users.findById(user.getId()).orElseThrow().getPassword()));
+  service.blockUser(user.getId()); em.clear(); assertFalse(users.findById(user.getId()).orElseThrow().isEnabled());
+ } @Test void shopAdminCannotReadGlobalDataOrEditUsers() {
   role("ADMIN");
+  assertThrows(org.springframework.security.access.AccessDeniedException.class,()->service.resetPassword(1L));
+  assertThrows(org.springframework.security.access.AccessDeniedException.class,()->service.blockUser(1L));
   assertThrows(org.springframework.security.access.AccessDeniedException.class,()->service.users());
   assertThrows(org.springframework.security.access.AccessDeniedException.class,()->service.audit(0));
   assertThrows(org.springframework.security.access.AccessDeniedException.class,()->service.errors(0));

@@ -50,4 +50,18 @@ public class SuperAdminService {
         if (newPassword != null && !newPassword.isEmpty()) user.setPassword(encoder.encode(newPassword));
         users.saveAndFlush(user);
     }
-}
+    @Transactional
+    public String resetPassword(Long id) {
+        User user = users.findById(id).orElseThrow();
+        byte[] bytes = new byte[12]; new java.security.SecureRandom().nextBytes(bytes);
+        String password = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        user.setPassword(encoder.encode(password)); users.saveAndFlush(user);
+        return password;
+    }
+    @Transactional
+    public void blockUser(Long id) {
+        User user = users.findById(id).orElseThrow();
+        if (user.getUsername().equals(org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getName()))
+            throw new IllegalArgumentException("Нельзя заблокировать свою учетную запись");
+        user.setEnabled(false); users.saveAndFlush(user);
+    }}

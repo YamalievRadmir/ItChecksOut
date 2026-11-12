@@ -25,7 +25,7 @@ public class MainLayout extends AppLayout {
                       ru.sklad.app.service.DeliveryService deliveries,
                       ru.sklad.app.service.AiService ai,
                       @org.springframework.beans.factory.annotation.Qualifier("aiExecutor") org.springframework.core.task.AsyncTaskExecutor aiExecutor,
-                      ru.sklad.app.config.GlobalExceptionHandler errors) {
+                      ru.sklad.app.config.GlobalExceptionHandler errors, ru.sklad.app.service.ThemePreferenceService themePreferences) {
         this.deliveries = deliveries;
         this.permissions = permissions;
         deliveryBadge.setVisible(false);
@@ -37,6 +37,8 @@ public class MainLayout extends AppLayout {
         addClassName("main-layout");
         setPrimarySection(Section.DRAWER);
 
+        var logo = new com.vaadin.flow.component.html.Image("favicon.png", "Логотип");
+        logo.setHeight("40px"); logo.getStyle().set("object-fit", "contain").set("flex-shrink", "0");
         H1 title = new H1("Всё сходится!");
         title.getStyle().set("font-size", "var(--lumo-font-size-l)")
                 .set("margin", "0");
@@ -45,11 +47,16 @@ public class MainLayout extends AppLayout {
         Button theme = new Button();
         theme.addClickListener(event -> theme.getUI().ifPresent(ui -> {
             boolean dark = !Boolean.TRUE.equals(ui.getSession().getAttribute("darkTheme"));
+            themePreferences.save(java.util.Objects.toString(ui.getSession().getAttribute("colorScheme"), "corporate"), dark);
             ui.getSession().setAttribute("darkTheme", dark);
             applyTheme(ui, theme, dark);
         }));
-        theme.addAttachListener(event -> applyTheme(event.getUI(), theme,
-                Boolean.TRUE.equals(event.getUI().getSession().getAttribute("darkTheme"))));
+        theme.addAttachListener(event -> {
+            var preference = themePreferences.load();
+            event.getUI().getSession().setAttribute("colorScheme", preference.scheme());
+            event.getUI().getSession().setAttribute("darkTheme", preference.dark());
+            applyTheme(event.getUI(), theme, preference.dark());
+        });
         Button account = new Button(VaadinIcon.USER.create());
         account.setAriaLabel("Меню пользователя");
         var current = SecurityContextHolder.getContext().getAuthentication();
@@ -71,6 +78,7 @@ public class MainLayout extends AppLayout {
             var label = new HorizontalLayout(dot, new com.vaadin.flow.component.html.Span(scheme[1]));
             label.setAlignItems(Alignment.CENTER); label.setSpacing(true);
             var item = schemeMenu.addItem(label, event -> account.getUI().ifPresent(ui -> {
+                themePreferences.save(scheme[0], Boolean.TRUE.equals(ui.getSession().getAttribute("darkTheme")));
                 ui.getSession().setAttribute("colorScheme", scheme[0]);
                 applyTheme(ui, theme, Boolean.TRUE.equals(ui.getSession().getAttribute("darkTheme")));
                 schemeItems.forEach((key, menuItem) -> menuItem.setChecked(key.equals(scheme[0])));
@@ -85,8 +93,15 @@ public class MainLayout extends AppLayout {
                 schemeItems.forEach((key, item) -> item.setChecked(key.equals(selected)));
             });
         });
-        accountMenu.addItem("Выйти", event -> authenticationContext.logout());
-        HorizontalLayout header = new HorizontalLayout(toggle, title, theme, account);
+        accountMenu.addItem("Выйти", event -> {
+            var ui = com.vaadin.flow.component.UI.getCurrent();
+            var request = (com.vaadin.flow.server.VaadinServletRequest) com.vaadin.flow.server.VaadinRequest.getCurrent();
+            var session = request.getHttpServletRequest().getSession(false);
+            org.springframework.security.core.context.SecurityContextHolder.clearContext();
+            if (session != null) session.invalidate();
+            ui.getPage().setLocation("/login");
+        });
+        HorizontalLayout header = new HorizontalLayout(toggle, logo, title, theme, account);
         header.setWidthFull();
         header.setAlignItems(Alignment.CENTER);
         header.setFlexGrow(1, title);
@@ -120,7 +135,7 @@ public class MainLayout extends AppLayout {
                 navigation.addItem(item);
             }
         });
-        SideNavItem website = new SideNavItem("Наш сайт", "https://agro-korma-shop.ru/", VaadinIcon.EXTERNAL_LINK.create());
+        SideNavItem website = new SideNavItem("Наш сайт", "https://kormaufa.ru/", VaadinIcon.EXTERNAL_LINK.create());
         website.setOpenInNewBrowserTab(true);
         website.getStyle().set("margin-top", "var(--lumo-space-m)");
         navigation.addItem(website);

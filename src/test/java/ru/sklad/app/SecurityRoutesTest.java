@@ -32,7 +32,10 @@ class SecurityRoutesTest {
   var client=login("super_admin","SuperRouteTest123!");assertEquals(200,get(client,"/super-admin"));
   for(String path:java.util.List.of("/products","/sales","/deliveries","/settings","/super-admin/nested")) {
    if(path.startsWith("/super-admin/")) assertNotEquals(403,get(client,path));
-   else assertEquals(403,get(client,path));
+   else {
+    var response=client.send(HttpRequest.newBuilder(URI.create("http://localhost:"+port+path)).GET().build(),HttpResponse.BodyHandlers.discarding());
+    assertEquals(302,response.statusCode()); assertTrue(response.headers().firstValue("location").orElse("").endsWith("/super-admin"));
+   }
   }
  }
  @Test void shopRolesCannotEnterManagementButCanEnterTheirBusinessPages() throws Exception {

@@ -37,22 +37,37 @@ class ProductFileImporterTest {
   Shop other=new Shop();other.setName("Other");shops.saveAndFlush(other);
   SecurityUtils.inShop(other,()->{Product p=new Product();p.setName("Feed");p.setRetailPrice(BigDecimal.ONE);products.saveAndFlush(p);return null;});
   Product p=new Product();p.setName("Feed");p.setCategory("Keep");p.setPurchasePrice(new BigDecimal("4"));products.saveAndFlush(p);
-  try(var input=excel(new Object[][]{{" STOCK ","  Наименование  ","PRICE"},{7,"Feed",12.5},{2,"New",20},{3,"New",25}})) { assertEquals(3,importer.importFile(input)); }
+  try(var input=excel(new Object[][]{{" STOCK ","  Наименование  ","PRICE"},{7,"Feed",12.5},{2,"New",20},{3,"New",25}})) { assertEquals(3,importer.importFile(input).processedRows()); }
   assertEquals(2,products.count());var updated=products.findById(p.getId()).orElseThrow();assertEquals("Keep",updated.getCategory());assertEquals(0,new BigDecimal("12.50").compareTo(updated.getRetailPrice()));
   assertEquals(0,new BigDecimal("4").compareTo(updated.getPurchasePrice()));
   SecurityUtils.inShop(other,()->{assertEquals(1,products.count());assertEquals(0,BigDecimal.ONE.compareTo(products.findAll().get(0).getRetailPrice()));return null;});
  }
  @Test void missingOptionalColumnsAndTextNumbersDefaultToZero() throws Exception {
-  try(var input=excel(new Object[][]{{"название"},{"One"},{""}})){assertEquals(1,importer.importFile(input));}
-  try(var input=excel(new Object[][]{{"товар","цена","кол-во"},{"Two","123","invalid"}})){assertEquals(1,importer.importFile(input));}
-  for(Product p:products.findAll()){assertEquals(0,p.getRetailPrice().signum());assertEquals(0,p.getStockQuantity().signum());assertEquals(SecurityUtils.currentShop().getId(),p.getShop().getId());}
+  try(var input=excel(new Object[][]{{"название"},{"One"},{""}})){assertEquals(1,importer.importFile(input).processedRows());}
+  try(var input=excel(new Object[][]{{"товар","цена","кол-во"},{"Two","123","invalid"}})){assertEquals(1,importer.importFile(input).processedRows());}
+  for(Product p:products.findAll()){assertEquals(p.getName().equals("Two") ? 0 : -1, p.getRetailPrice().compareTo(new BigDecimal("123")));assertEquals(0,p.getStockQuantity().signum());assertEquals(SecurityUtils.currentShop().getId(),p.getShop().getId());}
  }
- @Test void missingNameHeaderAndCorruptFileAreRejected() throws Exception {
+ @Test void fuzzyHeadersAndCurrencyTextReportZeroPrices() throws Exception {
+  try(var input=excel(new Object[][]{{"товар","ЦЕНА ПРОДАЖИ (руб.)","Qty (кг)"},
+    {"Currency","1 234,50 руб.","2,5"},{"Numeric",45.75,3},{"Bad","oops","bad"},{"Zero",0,0}})) {
+    var result=importer.importFile(input); assertEquals(4,result.processedRows()); assertEquals(2,result.zeroPriceRows());
+  }
+  var currency=products.findAll().stream().filter(p->p.getName().equals("Currency")).findFirst().orElseThrow();
+  assertEquals(0,new BigDecimal("1234.50").compareTo(currency.getRetailPrice()));
+  assertEquals(0,new BigDecimal("2.50").compareTo(currency.getStockQuantity()));
+ } @Test void previewDoesNotWriteUntilConfirmed() throws Exception {
+  try(var input=excel(new Object[][]{{"товар","цена продажи","остаток"},{"Preview",125,4}})) {
+   var rows=importer.parse(input);
+   assertEquals(1,rows.size()); assertEquals(0,products.count());
+   importer.savePreview(rows); assertEquals(1,products.count());
+   assertEquals(0,new BigDecimal("125").compareTo(products.findAll().get(0).getRetailPrice()));
+  }
+ } @Test void missingNameHeaderAndCorruptFileAreRejected() throws Exception {
   try(var input=excel(new Object[][]{{"price"},{10}})){assertEquals("Ошибка: не найдена колонка с наименованием",assertThrows(IllegalArgumentException.class,()->importer.importFile(input)).getMessage());}
   assertThrows(Exception.class,()->importer.importFile(new ByteArrayInputStream(new byte[]{1,2,3})));assertEquals(0,products.count());
  }
  @Test void sellerCannotImport() throws Exception {
   SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("seller","",AuthorityUtils.createAuthorityList("ROLE_SELLER")));
-  try(var input=excel(new Object[][]{{"name"},{"Forbidden"}})){assertThrows(org.springframework.security.access.AccessDeniedException.class,()->importer.importFile(input));}
+  try(var input=excel(new Object[][]{{"name"},{"Forbidden"}})){assertThrows(org.springframework.security.access.AccessDeniedException.class,()->importer.importFile(input).processedRows());}
  }
 }

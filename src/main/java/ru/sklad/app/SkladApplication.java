@@ -18,6 +18,7 @@ public class SkladApplication implements AppShellConfigurator {
     // PWA stays disabled during development. Remove the retirement worker before enabling PWA for deployment.
     @Override
     public void configurePage(AppShellSettings settings) {
+        settings.addFavIcon("icon", "favicon.png", "");
         settings.addInlineWithContents(Inline.Position.PREPEND, """
                 (async () => {
                   if (!('serviceWorker' in navigator)) return;

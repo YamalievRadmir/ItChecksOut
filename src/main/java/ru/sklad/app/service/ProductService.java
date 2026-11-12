@@ -102,4 +102,15 @@ public class ProductService {
         audit.safeLogAction("УДАЛЕНИЕ", "Товар", product.getName() + " (#" + id + ")", "Удаление карточки товара");
         products.delete(product); products.flush();
     }
-}
+    @Transactional
+    @PreAuthorize("hasRole('ADMIN')")
+    public void clearWarehouse() {
+        var shop = ru.sklad.app.util.SecurityUtils.currentShop();
+        for (Product product : products.findAllForUpdate()) {
+            product.getAlternativeProducts().clear(); product.getRecommendedAdditives().clear();
+        }
+        products.flush();
+        products.deleteAllByShop(shop);
+        products.flush();
+        audit.safeLogAction("УДАЛЕНИЕ", "Товары", "Склад", "Удалены все товары текущего магазина");
+    }}

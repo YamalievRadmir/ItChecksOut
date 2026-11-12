@@ -92,7 +92,18 @@ public class ProductsView extends VerticalLayout {
                 });
         Button importButton = new Button("Загрузить из файла", VaadinIcon.UPLOAD.create(), event -> openImportDialog());
         importButton.setVisible(isAdmin());
-        HorizontalLayout toolbar = new HorizontalLayout(searchField, addButton, importButton, export);
+        Button clearButton = new Button("Очистить склад", VaadinIcon.TRASH.create(), event -> {
+            var confirm = new com.vaadin.flow.component.confirmdialog.ConfirmDialog();
+            confirm.setHeader("Очистить склад");
+            confirm.setText("Вы уверены, что хотите удалить ВСЕ товары из этого магазина? Это действие необратимо");
+            confirm.setCancelable(true); confirm.setCancelText("Отмена"); confirm.setConfirmText("Удалить");
+            confirm.setConfirmButtonTheme("error primary");
+            confirm.addConfirmListener(click -> {
+                try { productService.clearWarehouse(); updateGrid(); Notification.show("Склад очищен"); }
+                catch (DataIntegrityViolationException ex) { Notification.show("Товары связаны с продажами, поставками или заказами. Очистка отменена, история сохранена."); }
+            }); confirm.open();
+        });
+        clearButton.setVisible(isAdmin()); clearButton.addThemeVariants(ButtonVariant.LUMO_ERROR);        HorizontalLayout toolbar = new HorizontalLayout(searchField, addButton, importButton, clearButton, export);
         toolbar.setWidthFull();
         toolbar.addClassName("app-toolbar");
         toolbar.setAlignItems(Alignment.CENTER);
@@ -130,27 +141,43 @@ public class ProductsView extends VerticalLayout {
     private void openImportDialog() {
         if (!isAdmin()) return;
         Dialog dialog = new Dialog(); dialog.setHeaderTitle("Загрузка товаров из Excel");
-        dialog.setWidth("560px"); dialog.setMaxWidth("95vw"); dialog.setModal(true);
+        dialog.setWidth("850px"); dialog.setMaxWidth("95vw"); dialog.setModal(true);
         var buffer = new com.vaadin.flow.component.upload.receivers.MemoryBuffer();
         var upload = new com.vaadin.flow.component.upload.Upload(buffer);
         upload.setAcceptedFileTypes(".xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         upload.setMaxFiles(1); upload.setMaxFileSize(20 * 1024 * 1024); upload.setDropAllowed(true);
         upload.setWidthFull();
-        var hint = new com.vaadin.flow.component.html.Paragraph("Перетащите Excel файл (.xlsx) сюда. Мы автоматически найдем колонки 'Наименование', 'Цена' и 'Остаток'.");
+        var hint = new com.vaadin.flow.component.html.Paragraph("Требования к файлу: формат .xlsx. Первая строка должна содержать заголовки колонок: «Наименование», «Цена продажи», «Остаток». Порядок колонок не важен.");
         upload.setDropLabel(new com.vaadin.flow.component.html.Span("Перетащите Excel файл (.xlsx) сюда"));
-        upload.addSucceededListener(event -> {
+        List<Product> pending = new ArrayList<>();
+        Grid<Product> preview = new Grid<>(Product.class, false);
+        preview.addColumn(Product::getName).setHeader("Наименование");
+        preview.addColumn(Product::getRetailPrice).setHeader("Цена продажи");
+        preview.addColumn(Product::getStockQuantity).setHeader("Остаток");
+        preview.setWidthFull(); preview.setHeight("320px"); preview.setVisible(false);
+        Button confirmImport = new Button("Подтвердить импорт", click -> {
+            try {
+                var result = fileImporter.savePreview(pending);
+                dialog.close(); updateGrid(); Notification.show("Успешно обработано строк: " + result.processedRows()
+                    + (result.zeroPriceRows() > 0 ? ". С нулевой ценой: " + result.zeroPriceRows() : ""));
+            } catch (Exception ex) { importError("Не удалось сохранить импорт. Проверьте данные и повторите попытку."); }
+        });
+        confirmImport.setEnabled(false); confirmImport.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        upload.addStartedListener(event -> { pending.clear(); preview.setItems(List.of()); confirmImport.setEnabled(false); });        upload.addSucceededListener(event -> {
             if (!event.getFileName().toLowerCase(java.util.Locale.ROOT).endsWith(".xlsx")) {
                 importError("Разрешены только файлы .xlsx"); return;
             }
             try (var input = buffer.getInputStream()) {
-                int count = fileImporter.importFile(input);
-                dialog.close(); updateGrid(); Notification.show("Успешно обработано строк: " + count);
+                pending.clear(); pending.addAll(fileImporter.parse(input));
+                preview.setItems(pending.stream().limit(10).toList()); preview.setVisible(true);
+                confirmImport.setEnabled(!pending.isEmpty());
             } catch (Exception ex) { importError("" + (ex.getMessage() == null ? "Не удалось прочитать файл" : ex.getMessage())); }
         });
         upload.addFileRejectedListener(event -> importError(event.getErrorMessage()));
         upload.addFailedListener(event -> importError("Ошибка загрузки файла: " + event.getReason().getMessage()));
-        VerticalLayout content = new VerticalLayout(hint, upload); content.setPadding(false); dialog.add(content);
-        dialog.getFooter().add(new Button("Закрыть", event -> dialog.close())); dialog.open();
+        VerticalLayout content = new VerticalLayout(hint, upload, new com.vaadin.flow.component.html.Span("Предпросмотр: первые 10 строк"), preview); content.setPadding(false); dialog.add(content);
+        dialog.getFooter().add(new Button("Отмена", event -> dialog.close()), confirmImport);
+        dialog.addOpenedChangeListener(event -> { if (!event.isOpened()) pending.clear(); }); dialog.open();
     }
     private void importError(String message) {
         Notification notification = Notification.show(message, 7000, Notification.Position.MIDDLE);

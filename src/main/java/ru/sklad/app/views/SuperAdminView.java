@@ -45,7 +45,21 @@ public class SuperAdminView extends VerticalLayout {
         userGrid.addColumn(User::getRole).setHeader("Роль").setSortable(true);
         userGrid.addColumn(user -> shopName(user.getShop())).setHeader("Магазин").setFlexGrow(2);
         userGrid.addComponentColumn(user -> new Button("Редактировать", event -> editUser(user))).setHeader("Действия");
-        userGrid.addItemDoubleClickListener(event -> editUser(event.getItem()));
+        userGrid.addColumn(user -> user.isEnabled() ? "Активен" : "Заблокирован").setHeader("Статус");
+        userGrid.addComponentColumn(user -> new Button("Сбросить пароль", event -> {
+            String generated = admin.resetPassword(user.getId());
+            Dialog result = dialog("Новый пароль: " + user.getUsername());
+            TextField value = new TextField("Сохраните пароль"); value.setValue(generated); value.setReadOnly(true); value.setWidthFull();
+            result.add(value); result.getFooter().add(new Button("Закрыть", click -> result.close()));
+            result.addOpenedChangeListener(change -> { if (!change.isOpened()) value.clear(); }); result.open();
+        }));
+        userGrid.addComponentColumn(user -> {
+            Button block = new Button("Заблокировать", event -> {
+                try { admin.blockUser(user.getId()); refresh(); }
+                catch (IllegalArgumentException ex) { Notification.show(ex.getMessage()); }
+            });
+            block.addThemeVariants(ButtonVariant.LUMO_ERROR); block.setEnabled(user.isEnabled()); return block;
+        });        userGrid.addItemDoubleClickListener(event -> editUser(event.getItem()));
         VerticalLayout userTab = panel();
         userTab.add(new Span("Дважды нажмите на пользователя, чтобы изменить логин или пароль."), userGrid); userTab.setFlexGrow(0, userGrid);
         VerticalLayout logsContent = panel();

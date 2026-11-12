@@ -3,8 +3,8 @@ package ru.sklad.app.util;
 public final class PasswordPolicy {
     private PasswordPolicy() {}
     public static void validate(String password) {
-        if (password == null || password.isBlank() || password.length() < 12
+        if (password == null || password.isBlank() || password.length() < 8
                 || password.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 72)
-            throw new IllegalArgumentException("Пароль: минимум 12 символов, максимум 72 байта UTF-8");
+            throw new IllegalArgumentException("Пароль: минимум 8 символов, максимум 72 байта UTF-8");
     }
 }

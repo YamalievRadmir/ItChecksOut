@@ -42,8 +42,13 @@ public class PermissionService {
     private final AuditService audit;
     public PermissionService(RoleSettingsRepository repository, AuditService audit) { this.repository = repository; this.audit = audit; }
 
+    public boolean isSuperAdmin() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null && auth.isAuthenticated() && auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_SUPER_ADMIN"));
+    }
     private String shopRole(String role) { return role + "@" + ru.sklad.app.util.SecurityUtils.currentShop().getId(); }
     public Set<String> allowed(String role) {
+        if (isSuperAdmin()) return Set.of();
         return repository.findById(shopRole(role)).or(() -> repository.findById(role)).map(settings -> {
             Set<String> result = new LinkedHashSet<>();
             for (String route : settings.getAllowedViews().split(",")) {
@@ -71,6 +76,7 @@ public class PermissionService {
         return VIEWS.keySet().stream().filter(this::canAccess).findFirst().orElse("no-access");
     }
     public Set<String> sellerActions() {
+        if (isSuperAdmin()) return Set.of();
         return repository.findById(shopRole("SELLER")).or(() -> repository.findById("SELLER")).map(settings -> {
             Set<String> actions = new LinkedHashSet<>(Arrays.asList(settings.getAllowedActions().split(",")));
             actions.retainAll(ACTIONS.keySet());
