@@ -16,7 +16,8 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-@DataJpaTest(showSql=false) @Import({ProductService.class, ProductAlternativeService.class})
+@DataJpaTest(showSql=false)
+@org.junit.jupiter.api.extension.ExtendWith(ru.sklad.app.TestShopContext.class) @Import({ru.sklad.app.util.SecurityUtils.class, ProductService.class, ProductAlternativeService.class})
 class ProductRelationsTest {
     @Autowired ProductRepository products;
     @Autowired ProductService service;

@@ -17,7 +17,7 @@ public class SystemSettingsPanel extends VerticalLayout {
     private int page;
     public SystemSettingsPanel(ErrorLogService errors, AccountAdminService accounts, BackupService backups) {
         setWidthFull(); setPadding(false);
-        Grid<AccountAdminService.Account> users = new Grid<>();
+        Grid<AccountAdminService.Account> users = ru.sklad.app.util.GridColumns.compact(new Grid<>());
         users.addColumn(AccountAdminService.Account::username).setHeader("Пользователь");
         users.addColumn(AccountAdminService.Account::roles).setHeader("Роли");
         users.addColumn(a -> a.enabled() ? "Активен" : "Отключен").setHeader("Статус");
@@ -35,7 +35,7 @@ public class SystemSettingsPanel extends VerticalLayout {
         })).setHeader("Действие");
         GridColumns.configure(users, "Пользователь", "Роли");
         users.setItems(accounts.list()); users.setWidthFull(); users.setHeight("240px");
-        Grid<ErrorLog> grid = new Grid<>(ErrorLog.class, false);
+        Grid<ErrorLog> grid = ru.sklad.app.util.GridColumns.compact(new Grid<>(ErrorLog.class, false));
         grid.addColumn(e -> e.getTimestamp().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss"))).setHeader("Время");
         grid.addColumn(ErrorLog::getUsername).setHeader("Пользователь");
         grid.addColumn(ErrorLog::getMessage).setHeader("Текст ошибки").setFlexGrow(3);
@@ -53,6 +53,7 @@ public class SystemSettingsPanel extends VerticalLayout {
         };
         previous.addClickListener(e -> { if (page > 0) page--; refresh.run(); }); next.addClickListener(e -> { page++; refresh.run(); });
         Button backup = new Button("Создать бэкап сейчас");
+        backup.setVisible(false);
         backup.addThemeVariants(ButtonVariant.LUMO_PRIMARY); backup.setDisableOnClick(true);
         backup.addClickListener(event -> {
             try {

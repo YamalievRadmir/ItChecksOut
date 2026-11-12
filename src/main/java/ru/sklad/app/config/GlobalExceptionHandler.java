@@ -15,13 +15,27 @@ public class GlobalExceptionHandler {
     private final ErrorLogService errors;
     public GlobalExceptionHandler(ErrorLogService errors) { this.errors = errors; }
     public void report(Throwable exception) {
+
+        log.error("Ошибка", exception);
         try { errors.record(exception); }
-        catch (Exception loggingFailure) { log.error("Не удалось сохранить журнал ошибок", loggingFailure); }
-        log.error("Необработанная ошибка приложения", exception);
+        catch (Exception loggingFailure) {
+
+            log.error("Не удалось сохранить журнал ошибок", loggingFailure);
+        }
+    }
+    public static boolean isAiFailure(Throwable exception) {
+        var seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<Throwable, Boolean>());
+        for (Throwable cause = exception; cause != null && seen.add(cause); cause = cause.getCause()) {
+            if (cause instanceof org.springframework.web.client.ResourceAccessException
+                    || cause instanceof ru.sklad.app.service.AiService.AiUnavailableException) return true;
+            for (StackTraceElement frame : cause.getStackTrace())
+                if (frame.getClassName().equals(ru.sklad.app.service.AiService.class.getName())) return true;
+        }
+        return false;
     }
     public void notifyVaadin(Throwable exception) {
         report(exception);
-        if (UI.getCurrent() != null) Notification.show(MESSAGE, 7000, Notification.Position.MIDDLE);
+        if (!isAiFailure(exception) && UI.getCurrent() != null) Notification.show(MESSAGE, 7000, Notification.Position.MIDDLE);
     }
     @ExceptionHandler(Exception.class)
     @ResponseBody
@@ -30,7 +44,7 @@ public class GlobalExceptionHandler {
         HttpStatusCode status = exception instanceof org.springframework.web.ErrorResponse response
                 ? response.getStatusCode() : exception instanceof org.springframework.security.access.AccessDeniedException
                 ? HttpStatus.FORBIDDEN : HttpStatus.INTERNAL_SERVER_ERROR;
-        if (UI.getCurrent() != null) Notification.show(MESSAGE);
+        if (!isAiFailure(exception) && UI.getCurrent() != null) Notification.show(MESSAGE);
         return ResponseEntity.status(status).cacheControl(CacheControl.noStore()).body(Map.of("message", MESSAGE));
     }
 }

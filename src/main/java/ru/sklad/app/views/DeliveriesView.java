@@ -38,21 +38,21 @@ import java.util.*;
 
 @Route(value = "deliveries", layout = MainLayout.class)
 @PageTitle("Доставка — Всё сходится!")
-@PermitAll
+@jakarta.annotation.security.RolesAllowed({"ADMIN", "SELLER"})
 public class DeliveriesView extends VerticalLayout {
     private final ru.sklad.app.service.ProductAlternativeService suggestions;
     private final DeliveryService service;
     private final CustomerRepository customers;
     private final ProductRepository products;
-    private final Grid<Delivery> grid = new Grid<>(Delivery.class, false);
-    private final Grid<Customer> customerGrid = new Grid<>(Customer.class, false);
+    private final Grid<Delivery> grid = ru.sklad.app.util.GridColumns.compact(new Grid<>(Delivery.class, false));
+    private final Grid<Customer> customerGrid = ru.sklad.app.util.GridColumns.compact(new Grid<>(Customer.class, false));
     private final DatePicker selectedDate = new DatePicker("Дата доставки", LocalDate.now());
 
     public DeliveriesView(DeliveryService service, CustomerRepository customers, ProductRepository products,
                           ru.sklad.app.service.ProductAlternativeService suggestions) {
         this.suggestions = suggestions;
         this.service = service; this.customers = customers; this.products = products;
-        setSizeFull(); addClassNames("deliveries-view", "compact-page");
+        setSizeFull(); addClassNames("deliveries-view", "compact-page"); getStyle().set("overflow", "auto");
         Button create = new Button("Создать заявку", e -> edit(null));
         create.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         add(new H3("Доставки"));
@@ -91,34 +91,35 @@ public class DeliveriesView extends VerticalLayout {
             return actions;
         }).setHeader("Действия").setWidth("330px").setFlexGrow(0);
         GridColumns.configure(grid, "Клиент");
-        grid.setSizeFull();
+        grid.setWidthFull(); grid.setHeight("50px");
         grid.asSingleSelect().addValueChangeListener(e -> {
             if (e.isFromClient() && e.getValue() != null) {
                 Long id = e.getValue().getId(); grid.deselectAll(); edit(id);
             }
         });
         VerticalLayout requests = new VerticalLayout(filters, grid);
-        requests.addClassNames("compact-tab-body", "app-card"); requests.setPadding(false); requests.setSizeFull(); requests.setFlexGrow(1, grid);
+        requests.addClassNames("compact-tab-body", "app-card"); requests.setPadding(false); requests.setWidthFull(); requests.setFlexGrow(0, grid);
         customerGrid.addColumn(Customer::getName).setHeader("Имя");
         customerGrid.addColumn(Customer::getPhone).setHeader("Телефон");
         customerGrid.addColumn(Customer::getAddress).setHeader("Адрес").setFlexGrow(2);
         GridColumns.configure(customerGrid, "Имя", "Адрес");
-        customerGrid.setSizeFull();
+        customerGrid.setWidthFull(); customerGrid.setHeight("50px");
         Button addCustomer = new Button("Добавить заказчика", e -> createCustomer());
         addCustomer.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         VerticalLayout customerTab = new VerticalLayout(addCustomer, customerGrid);
-        customerTab.addClassNames("compact-tab-body", "app-card"); customerTab.setPadding(false); customerTab.setSizeFull(); customerTab.setFlexGrow(1, customerGrid);
+        customerTab.addClassNames("compact-tab-body", "app-card"); customerTab.setPadding(false); customerTab.setWidthFull(); customerTab.setFlexGrow(0, customerGrid);
         com.vaadin.flow.component.tabs.TabSheet tabs = new com.vaadin.flow.component.tabs.TabSheet();
-        tabs.add("Заявки", requests); tabs.add("Заказчики", customerTab); tabs.setSizeFull(); tabs.addClassName("compact-tabs");
-        add(tabs); setFlexGrow(1, tabs); refresh(); refreshCustomers();
+        tabs.add("Заявки", requests); tabs.add("Заказчики", customerTab); tabs.setWidthFull(); tabs.addClassName("compact-tabs");
+        add(tabs); setFlexGrow(0, tabs); refresh(); refreshCustomers();
     }
     private void refresh() {
         grid.setItems(selectedDate.isInvalid() ? List.of() : service.list(selectedDate.getValue()));
+        GridColumns.updateGridHeight(grid);
         getUI().ifPresent(ui -> ui.getChildren()
                 .filter(MainLayout.class::isInstance).map(MainLayout.class::cast)
                 .forEach(MainLayout::refreshDeliveryBadge));
     }
-    private void refreshCustomers() { customerGrid.setItems(service.customers()); }
+    private void refreshCustomers() { customerGrid.setItems(service.customers()); GridColumns.updateGridHeight(customerGrid); }
 
     private void addDeliveryProduct(Product selected, BigDecimal requested,
                                     Map<Long, DeliveryService.Line> cart, Runnable refreshCart) {
@@ -231,12 +232,13 @@ public class DeliveriesView extends VerticalLayout {
             existing.getItems().forEach(i -> cart.put(i.getProduct().getId(), new DeliveryService.Line(i.getProduct(), i.getQuantity())));
         }
         Span total = new Span();
-        Grid<DeliveryService.Line> items = new Grid<>();
+        Grid<DeliveryService.Line> items = ru.sklad.app.util.GridColumns.compact(new Grid<>());
         items.addColumn(line -> line.product().getName()).setHeader("Товар").setFlexGrow(2);
         items.addColumn(DeliveryService.Line::quantity).setHeader("Количество");
         items.addColumn(line -> money(price(line.product()).multiply(line.quantity()))).setHeader("Сумма");
         Runnable refreshCart = () -> {
             items.setItems(cart.values());
+            GridColumns.updateGridHeight(items);
             total.setText("Итого: " + money(cart.values().stream().map(line -> price(line.product()).multiply(line.quantity()))
                     .reduce(BigDecimal.ZERO, BigDecimal::add).setScale(2, RoundingMode.HALF_UP)));
         };
@@ -244,7 +246,7 @@ public class DeliveriesView extends VerticalLayout {
                 additive -> addDeliveryProduct(additive, BigDecimal.ONE, cart, refreshCart)));
         items.addComponentColumn(line -> new Button("Удалить", e -> { cart.remove(line.product().getId()); refreshCart.run(); }));
         GridColumns.configure(items, "Товар");
-        items.setWidthFull(); items.setHeight("240px");
+        items.setWidthFull(); items.setHeight("50px");
         ComboBox<Product> product = new ComboBox<>("Товар"); product.setItemLabelGenerator(ProductSuggestionsDialog::stockLabel);
         product.addFocusListener(event -> product.getDataProvider().refreshAll());
         product.setPageSize(30); product.setWidth("320px");
@@ -281,7 +283,7 @@ public class DeliveriesView extends VerticalLayout {
             TextField search = new TextField("Поиск по названию"); search.setWidthFull();
             search.setClearButtonVisible(true);
             search.setValueChangeMode(com.vaadin.flow.data.value.ValueChangeMode.LAZY);
-            Grid<Product> catalog = new Grid<>(Product.class, false);
+            Grid<Product> catalog = ru.sklad.app.util.GridColumns.compact(new Grid<>(Product.class, false));
             catalog.addColumn(Product::getName).setHeader("Товар").setFlexGrow(2);
             catalog.addColumn(Product::getCategory).setHeader("Категория");
             catalog.addColumn(p -> ru.sklad.app.service.InventoryService.stock(p).stripTrailingZeros().toPlainString()

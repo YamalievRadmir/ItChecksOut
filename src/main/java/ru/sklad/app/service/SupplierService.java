@@ -33,7 +33,7 @@ public class SupplierService {
         supplier.setName(name.trim()); supplier.setPhone(Objects.toString(phone, "").trim());
         supplier.setAddress(Objects.toString(address, "").trim()); supplier.setComment(Objects.toString(comment, "").trim());
         Supplier saved = repository.saveAndFlush(supplier);
-        audit.logAction(id == null ? "СОЗДАНИЕ" : "ИЗМЕНЕНИЕ", "Поставщик", saved.getName() + " (#" + saved.getId() + ")",
+        audit.safeLogAction(id == null ? "СОЗДАНИЕ" : "ИЗМЕНЕНИЕ", "Поставщик", saved.getName() + " (#" + saved.getId() + ")",
                 before + "Название: " + saved.getName() + "; Телефон: " + saved.getPhone()
                         + "; Адрес: " + saved.getAddress() + "; Комментарий: " + saved.getComment());
         return saved;
@@ -46,6 +46,6 @@ public class SupplierService {
                 .orElseThrow(() -> new IllegalArgumentException("Поставщик больше не существует"));
         repository.delete(supplier); repository.flush();
         // Supply history keeps the supplier's name as a snapshot, without a cascading foreign key.
-        audit.logAction("УДАЛЕНИЕ", "Поставщик", supplier.getName() + " (#" + id + ")", "Удален из справочника поставщиков");
+        audit.safeLogAction("УДАЛЕНИЕ", "Поставщик", supplier.getName() + " (#" + id + ")", "Удален из справочника поставщиков");
     }
 }

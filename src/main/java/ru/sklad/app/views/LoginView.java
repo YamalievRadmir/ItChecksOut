@@ -16,7 +16,7 @@ public class LoginView extends VerticalLayout implements BeforeEnterObserver {
 
     private final LoginForm login = new LoginForm();
 
-    public LoginView() {
+    public LoginView(ru.sklad.app.service.DemoShopService demo, org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration authentication, org.springframework.core.env.Environment environment) {
         setSizeFull();
         setAlignItems(Alignment.CENTER);
         setJustifyContentMode(JustifyContentMode.CENTER);
@@ -32,6 +32,23 @@ public class LoginView extends VerticalLayout implements BeforeEnterObserver {
         login.setAction("login");
         login.setForgotPasswordButtonVisible(false);
         add(login);
+        if (environment.getProperty("app.demo-login.enabled", Boolean.class, false)) add(new com.vaadin.flow.component.button.Button("Попробовать в демо-режиме", event -> {
+            try {
+                demo.prepare();
+                var auth = authentication.getAuthenticationManager().authenticate(
+                    org.springframework.security.authentication.UsernamePasswordAuthenticationToken.unauthenticated("demo", "demo"));
+                var request = ((com.vaadin.flow.server.VaadinServletRequest) com.vaadin.flow.server.VaadinRequest.getCurrent()).getHttpServletRequest();
+                var response = ((com.vaadin.flow.server.VaadinServletResponse) com.vaadin.flow.server.VaadinResponse.getCurrent()).getHttpServletResponse();
+                var httpSession = request.getSession(true);
+                java.util.Collections.list(httpSession.getAttributeNames()).forEach(httpSession::removeAttribute);
+                request.changeSessionId();
+                var context = org.springframework.security.core.context.SecurityContextHolder.createEmptyContext();
+                context.setAuthentication(auth);
+                org.springframework.security.core.context.SecurityContextHolder.setContext(context);
+                new org.springframework.security.web.context.HttpSessionSecurityContextRepository().saveContext(context, request, response);
+                getUI().ifPresent(ui -> ui.getPage().setLocation("/products"));
+            } catch (Exception ex) { com.vaadin.flow.component.notification.Notification.show("Не удалось открыть демо-магазин"); }
+        }));
     }
 
     @Override

@@ -36,6 +36,27 @@ class AiServiceTest {
         assertThrows(AiService.AiUnavailableException.class,()->new AiService(guides,rest,"http://localhost:11434","model",errors).askAi("Вопрос"));
         verify(errors).report(any(Throwable.class)); server.verify();
     }
+    @Test void disconnectedOllamaReturnsMessageWithoutThrowing() {
+        var guides=mock(AnimalGuideRepository.class); var errors=mock(GlobalExceptionHandler.class);
+        var rest=mock(RestTemplate.class);
+        when(rest.postForObject(anyString(),any(),eq(AiService.GenerateResponse.class)))
+            .thenThrow(new org.springframework.web.client.ResourceAccessException("Connection refused"));
+        assertEquals(AiService.CONNECTION_UNAVAILABLE,new AiService(guides,rest,"http://localhost:11434","model",errors).askAi("Вопрос"));
+        verify(errors).report(any(org.springframework.web.client.ResourceAccessException.class));
+    }
+    @Test void aiFailuresDoNotCreateVaadinNotifications() {
+        var errors=mock(ru.sklad.app.service.ErrorLogService.class);
+        var handler=new GlobalExceptionHandler(errors);
+        var ui=new com.vaadin.flow.component.UI(); com.vaadin.flow.component.UI.setCurrent(ui);
+        try {
+            Throwable failure=new RuntimeException(new org.springframework.web.client.ResourceAccessException("Connection refused"));
+            handler.notifyVaadin(failure);
+            assertEquals(0,ui.getChildren().count());
+            assertTrue(GlobalExceptionHandler.isAiFailure(failure));
+            assertFalse(GlobalExceptionHandler.isAiFailure(new IllegalStateException("Database failure")));
+            verify(errors).record(failure);
+        } finally { com.vaadin.flow.component.UI.setCurrent(null); }
+    }
     @Test void rejectsBlankQuestionWithoutDatabaseOrNetworkAccess() {
         var guides=mock(AnimalGuideRepository.class); var rest=mock(RestTemplate.class);
         var ai=new AiService(guides,rest,"http://localhost:11434","model",mock(GlobalExceptionHandler.class));

@@ -14,9 +14,12 @@ public class SiteOrderController {
     public record Order(String customerName, String phone, String address, String comment, List<Item> items) {}
     private final SiteOrderService orders;
     public SiteOrderController(SiteOrderService orders) { this.orders = orders; }
+    @org.springframework.beans.factory.annotation.Autowired private ru.sklad.app.repository.ShopRepository shops;
+    @org.springframework.beans.factory.annotation.Value("${app.site-order.shop-id:1}") private long shopId;
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public Map<String, String> create(@RequestBody Order order) {
-        orders.create(order);
+        var shop = shops.findById(shopId).filter(ru.sklad.app.entity.Shop::isActive).orElseThrow();
+        ru.sklad.app.util.SecurityUtils.inShop(shop, () -> orders.create(order));
         return Map.of("status", "success", "message", "Заявка создана");
     }
     @ExceptionHandler({IllegalArgumentException.class, org.springframework.http.converter.HttpMessageNotReadableException.class})

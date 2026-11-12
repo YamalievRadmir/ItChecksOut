@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 @Entity
 @Getter
 @Setter
-public class Inventory {
+public class Inventory extends ShopOwned {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     @Column(nullable = false)

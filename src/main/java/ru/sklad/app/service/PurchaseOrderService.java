@@ -24,14 +24,14 @@ public class PurchaseOrderService {
         this.audit = audit;
     }
     private PurchaseOrder draft() {
-        PurchaseOrder order = orders.findLockedById(1L).orElseGet(() -> orders.saveAndFlush(new PurchaseOrder()));
+        PurchaseOrder order = orders.findLockedById(PurchaseOrder.currentDraftId()).orElseGet(() -> orders.saveAndFlush(new PurchaseOrder()));
         if (order.getCreatedAt().toLocalDate().isBefore(LocalDate.now())) {
             PurchaseOrderHistory.remember(orders, order, order.getCreatedAt());
             order.setCreatedAt(LocalDateTime.now()); orders.saveAndFlush(order);
         }
         if (!order.isInitialized()) {
             order.setInitialized(true); orders.saveAndFlush(order);
-            audit.logAction("СОЗДАНИЕ", "Заявка на закупку", "#" + order.getId(), "Сформирован первоначальный черновик");
+            audit.safeLogAction("СОЗДАНИЕ", "Заявка на закупку", "#" + order.getId(), "Сформирован первоначальный черновик");
         }
         return order;
     }
@@ -101,7 +101,7 @@ public class PurchaseOrderService {
         if (existing.isPresent()) existing.get().setQuantity(total); else addItem(order, product, total);
         orders.saveAndFlush(order);
         PurchaseOrderHistory.remember(orders, order);
-        audit.logAction("ИЗМЕНЕНИЕ", "Заявка на закупку", "#" + order.getId(), "Добавлен товар: " + product.getName()
+        audit.safeLogAction("ИЗМЕНЕНИЕ", "Заявка на закупку", "#" + order.getId(), "Добавлен товар: " + product.getName()
                 + "; Добавлено: " + quantity + "; Количество в заказе: " + before + " → " + total);
         return snapshot(order);
     }
@@ -117,7 +117,7 @@ public class PurchaseOrderService {
         BigDecimal before = item.getQuantity();
         item.setQuantity(quantity); orders.saveAndFlush(order);
         PurchaseOrderHistory.remember(orders, order);
-        audit.logAction("ИЗМЕНЕНИЕ", "Заявка на закупку", "#" + order.getId(), item.getProduct().getName() + "; Количество: " + before + " → " + quantity);
+        audit.safeLogAction("ИЗМЕНЕНИЕ", "Заявка на закупку", "#" + order.getId(), item.getProduct().getName() + "; Количество: " + before + " → " + quantity);
         return snapshot(order);
     }
     public Draft remove(Long productId) {
@@ -127,13 +127,13 @@ public class PurchaseOrderService {
         boolean removed = order.getItems().removeIf(i -> i.getProduct().getId().equals(productId));
         orders.saveAndFlush(order);
         if (removed) PurchaseOrderHistory.remember(orders, order);
-        if (removed) audit.logAction("ИЗМЕНЕНИЕ", "Заявка на закупку", "#" + order.getId(), "Удалена позиция товара #" + productId);
+        if (removed) audit.safeLogAction("ИЗМЕНЕНИЕ", "Заявка на закупку", "#" + order.getId(), "Удалена позиция товара #" + productId);
         return snapshot(order);
     }
     public Draft addCalculated() {
         PurchaseOrder order = draft(); appendRecommendations(order); orders.saveAndFlush(order);
         PurchaseOrderHistory.remember(orders, order);
-        audit.logAction("ИЗМЕНЕНИЕ", "Заявка на закупку", "#" + order.getId(), "Добавлены позиции по расчету");
+        audit.safeLogAction("ИЗМЕНЕНИЕ", "Заявка на закупку", "#" + order.getId(), "Добавлены позиции по расчету");
         return snapshot(order);
     }
 
@@ -141,7 +141,7 @@ public class PurchaseOrderService {
         PurchaseOrder order = draft();
         LocalDate yesterday = LocalDate.now().minusDays(1);
         PurchaseOrder source = orders.findFirstByIdNotAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDescIdDesc(
-                1L, yesterday.atStartOfDay(), yesterday.plusDays(1).atStartOfDay())
+                PurchaseOrder.currentDraftId(), yesterday.atStartOfDay(), yesterday.plusDays(1).atStartOfDay())
                 .filter(saved -> !saved.getItems().isEmpty())
                 .orElseThrow(() -> new IllegalArgumentException("Вчерашних заявок не найдено"));
         // Read and validate before replacing the current draft.
@@ -152,7 +152,7 @@ public class PurchaseOrderService {
         order.getItems().clear(); orders.saveAndFlush(order);
         copied.forEach(item -> addItem(order, item.getKey(), item.getValue()));
         orders.saveAndFlush(order); PurchaseOrderHistory.remember(orders, order);
-        audit.logAction("ИЗМЕНЕНИЕ", "Заявка на закупку", "#" + order.getId(),
+        audit.safeLogAction("ИЗМЕНЕНИЕ", "Заявка на закупку", "#" + order.getId(),
                 "Повторена заявка #" + source.getId() + " за " + yesterday + "; Позиций: " + copied.size());
         return snapshot(order);
     }
@@ -161,7 +161,7 @@ public class PurchaseOrderService {
         PurchaseOrder order = draft(); int count = order.getItems().size();
         PurchaseOrderHistory.remember(orders, order);
         order.getItems().clear(); orders.saveAndFlush(order);
-        if (count > 0) audit.logAction("ИЗМЕНЕНИЕ", "Заявка на закупку", "#" + order.getId(),
+        if (count > 0) audit.safeLogAction("ИЗМЕНЕНИЕ", "Заявка на закупку", "#" + order.getId(),
                 "Очищен текущий заказ; Позиций: " + count);
         return snapshot(order);
     }

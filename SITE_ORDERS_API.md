@@ -1,4 +1,8 @@
-﻿# Заказы сайта → доставка
+> Production update (2026-11-12): POST /api/public/delivery-order now requires
+> X-Site-Order-Key, matching SITE_ORDER_API_KEY (minimum 32 characters).
+> The key belongs on the website backend, never in public browser JavaScript.
+> An empty key disables requests; browser login cookies do not authorize this API.
+# Заказы сайта → доставка
 
 POST https://sklad.agro-korma-shop.ru/api/public/delivery-order
 Content-Type: application/json

@@ -26,13 +26,16 @@ public class DataInitializer implements CommandLineRunner {
         this.notes = notes;
     }
 
+    @org.springframework.beans.factory.annotation.Autowired private ru.sklad.app.repository.ShopRepository shops;
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void run(String... args) throws Exception {
+        ru.sklad.app.util.SecurityUtils.inShop(shops.findById(1L).orElseThrow(), () -> { try {
         initializeAnimalGuides();
         initializeKnowledgeArticles();
         initializeNotes();
         demoData.initialize(Path.of("price.xlsx"), resetDemoData, generateDemoHistory);
+        notes.flush(); return null; } catch (Exception ex) { throw new IllegalStateException(ex); } });
     }
 
     private void initializeNotes() {

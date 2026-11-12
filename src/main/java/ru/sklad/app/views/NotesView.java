@@ -8,7 +8,7 @@ import com.vaadin.flow.component.html.*;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
-import com.vaadin.flow.component.tabs.*;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.textfield.*;
 import com.vaadin.flow.router.*;
 import jakarta.annotation.security.RolesAllowed;
@@ -22,22 +22,40 @@ import java.time.format.DateTimeFormatter;
 public class NotesView extends VerticalLayout {
     private final NoteService service;
     private final Div cards = new Div();
-    private final Tabs filters = new Tabs(new Tab("Все"), new Tab("Долги"), new Tab("Инструкции"));
+    private final Div debts = new Div();
     public NotesView(NoteService service) {
         this.service = service;
-        setSizeFull(); getStyle().set("overflow", "auto");
-        Button create = new Button("Добавить заметку", VaadinIcon.PLUS.create(), e -> createNote());
+        setSizeFull(); addClassName("notes-view"); getStyle().set("overflow", "hidden");
+        Button create = new Button("+ Добавить заметку", VaadinIcon.PLUS.create(), event -> openEditor(null, "ИНСТРУКЦИЯ"));
+        Button createDebt = new Button("+ Добавить долг", VaadinIcon.PLUS.create(), event -> openEditor(null, "ДОЛГ"));
         create.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-        cards.addClassName("notes-list"); cards.setWidthFull();
-        filters.addSelectedChangeListener(e -> refresh());
-        add(new H2("Заметки"), create, filters, cards); refresh();
+        createDebt.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        VerticalLayout left = column("Заметки и Инструкции", create, cards);
+        VerticalLayout right = column("Долги", createDebt, debts);
+        left.setWidth("60%"); right.setWidth("40%");
+        HorizontalLayout columns = new HorizontalLayout(left, right);
+        columns.addClassName("notes-columns"); columns.setSizeFull(); columns.setMinHeight("0");
+        add(columns); setFlexGrow(1, columns); refresh();
+    }
+    private VerticalLayout column(String title, Button create, Div list) {
+        H3 heading = new H3(title);
+        HorizontalLayout toolbar = new HorizontalLayout(heading, create);
+        toolbar.addClassName("notes-column-toolbar"); toolbar.setWidthFull();
+        toolbar.setAlignItems(Alignment.CENTER); toolbar.setFlexGrow(1, heading);
+        list.addClassName("notes-list"); list.setWidthFull();
+        VerticalLayout column = new VerticalLayout(toolbar, list);
+        column.addClassName("notes-column"); column.setHeightFull(); column.setPadding(false);
+        column.setMinWidth("0"); column.setMinHeight("0"); column.setFlexGrow(1, list);
+        return column;
     }
     private void refresh() {
-        cards.removeAll();
-        String type = switch (filters.getSelectedIndex()) { case 1 -> "ДОЛГ"; case 2 -> "ИНСТРУКЦИЯ"; default -> null; };
-        var notes = service.list(type);
-        if (notes.isEmpty()) cards.add(new Paragraph("Заметок пока нет"));
-        notes.forEach(note -> cards.add(card(note)));
+        cards.removeAll(); debts.removeAll();
+        for (Note note : service.list(null)) {
+            if ("ДОЛГ".equals(note.getNoteType())) debts.add(card(note));
+            else if ("ПРОЧЕЕ".equals(note.getNoteType()) || "ИНСТРУКЦИЯ".equals(note.getNoteType())) cards.add(card(note));
+        }
+        if (cards.getComponentCount() == 0) cards.add(new Paragraph("Заметок пока нет"));
+        if (debts.getComponentCount() == 0) debts.add(new Paragraph("Долгов пока нет"));
     }
     private Div card(Note note) {
         Div card = new Div(); card.addClassNames("custom-card", "app-card", "note-card");
@@ -51,10 +69,10 @@ public class NotesView extends VerticalLayout {
         Span date = new Span(note.getCreatedAt().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")));
         date.addClassName("metric-label");
         Paragraph content = new Paragraph(note.getContent()); content.addClassName("note-content");
-        card.add(heading, date, content);
+        card.add(heading, date);
         if ("ДОЛГ".equals(note.getNoteType())) {
             Span badge = new Span(NoteService.debtAmount(note.getContent()).orElse("Долг — сумма не указана"));
-            badge.addClassName("note-debt-badge"); card.add(badge);
+            badge.addClassName("note-debt-badge"); card.add(badge, content);
             if (!note.isResolved()) {
                 Button resolve = new Button("Закрыть долг", e -> {
                     try { service.resolveDebt(note.getId()); refresh(); Notification.show("Долг закрыт"); }
@@ -63,25 +81,24 @@ public class NotesView extends VerticalLayout {
                 card.add(resolve);
             }
         }
+        if (!"ДОЛГ".equals(note.getNoteType())) card.add(content);
         if (note.isResolved()) { card.addClassName("note-resolved"); card.add(new Span("Закрыто")); }
         Button edit = new Button("Редактировать", VaadinIcon.EDIT.create(), event -> editNote(note.getId()));
         edit.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
         card.add(edit);
         return card;
     }
-    private void createNote() {
-        openEditor(null);
-    }
     private Dialog editNote(Long id) {
         try { return openEditor(service.get(id)); }
         catch (IllegalArgumentException exception) { refresh(); Notification.show(exception.getMessage()); return null; }
     }
-    private Dialog openEditor(Note note) {
-        Dialog dialog = new Dialog(); dialog.setHeaderTitle(note == null ? "Добавить заметку" : "Редактировать заметку");
+    private Dialog openEditor(Note note) { return openEditor(note, "ИНСТРУКЦИЯ"); }
+    private Dialog openEditor(Note note, String defaultType) {
+        Dialog dialog = new Dialog(); dialog.setHeaderTitle(note == null ? ("ДОЛГ".equals(defaultType) ? "Добавить долг" : "Добавить заметку") : "Редактировать заметку");
         dialog.setWidth("560px"); dialog.setMaxWidth("95vw"); dialog.setCloseOnOutsideClick(false);
         ComboBox<String> type = new ComboBox<>("Тип заметки"); type.setItems("ДОЛГ", "ИНСТРУКЦИЯ", "ПРОЧЕЕ");
         type.setItemLabelGenerator(value -> switch (value) { case "ДОЛГ" -> "Долг"; case "ИНСТРУКЦИЯ" -> "Инструкция"; default -> "Прочее"; });
-        type.setValue("ПРОЧЕЕ"); type.setRequiredIndicatorVisible(true);
+        type.setValue(defaultType); type.setRequiredIndicatorVisible(true);
         TextField title = new TextField("Заголовок"); title.setMaxLength(255); title.setRequiredIndicatorVisible(true);
         TextArea content = new TextArea("Текст заметки"); content.setRequiredIndicatorVisible(true); content.setMinHeight("180px");
         if (note != null) {

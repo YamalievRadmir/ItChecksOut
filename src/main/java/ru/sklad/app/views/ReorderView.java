@@ -31,19 +31,19 @@ import java.util.List;
 
 @Route(value = "reorder", layout = MainLayout.class)
 @PageTitle("К закупке — Всё сходится!")
-@PermitAll
+@jakarta.annotation.security.RolesAllowed({"ADMIN", "SELLER"})
 public class ReorderView extends VerticalLayout {
     private final PurchaseOrderService service;
-    private final Grid<Row> orderGrid = new Grid<>();
-    private final Grid<Product> stockGrid = new Grid<>(Product.class, false);
+    private final Grid<Row> orderGrid = ru.sklad.app.util.GridColumns.compact(new Grid<>());
+    private final Grid<Product> stockGrid = ru.sklad.app.util.GridColumns.compact(new Grid<>(Product.class, false));
     private final TextField search = new TextField("Поиск по названию");
 
     public ReorderView(PurchaseOrderService service, PermissionService permissions) {
-        this.service = service; setSizeFull(); addClassNames("reorder-view", "compact-page"); getStyle().set("overflow", "auto");
+        this.service = service; setSizeFull(); addClassNames("reorder-view", "compact-page", "workspace-table-page"); getStyle().set("overflow", "auto");
         orderGrid.addColumn(Row::name).setHeader("Наименование").setFlexGrow(2);
         orderGrid.addComponentColumn(row -> {
-            NumberField quantity = new NumberField(); quantity.setAriaLabel("Количество к заказу: " + row.name());
-            quantity.setMin(0); quantity.setMax(99999999.99); quantity.setStep(0.01); quantity.setWidthFull();
+            NumberField quantity = new NumberField(); quantity.addThemeVariants(com.vaadin.flow.component.textfield.TextFieldVariant.LUMO_SMALL); quantity.setAriaLabel("Количество к заказу: " + row.name());
+            quantity.setMin(0); quantity.setMax(99999999.99); quantity.setStep(0.01); quantity.setWidth("120px");
             quantity.setValue(row.quantity().doubleValue()); quantity.setValueChangeMode(ValueChangeMode.ON_BLUR);
             quantity.addValueChangeListener(event -> {
                 if (!event.isFromClient()) return;
@@ -55,7 +55,7 @@ public class ReorderView extends VerticalLayout {
                 catch (IllegalArgumentException exception) { quantity.setInvalid(true); Notification.show(exception.getMessage()); }
             });
             return quantity;
-        }).setHeader("Количество к заказу").setWidth("250px").setFlexGrow(0);
+        }).setHeader("Количество к заказу").setAutoWidth(true).setFlexGrow(0);
         orderGrid.addColumn(Row::stock).setHeader("Остаток на складе");
         orderGrid.addColumn(Row::unit).setHeader("Ед. изм.");
         orderGrid.addComponentColumn(row -> {
@@ -64,8 +64,8 @@ public class ReorderView extends VerticalLayout {
             return remove;
         }).setHeader("Действие");
         GridColumns.configure(orderGrid, "Наименование");
-        orderGrid.setSizeFull(); orderGrid.setMinHeight("0");
-        VerticalLayout orderTab = new VerticalLayout(orderGrid); orderTab.addClassNames("compact-tab-body", "app-card"); orderTab.setPadding(false); orderTab.setSizeFull(); orderTab.setFlexGrow(1, orderGrid);
+        orderGrid.setWidthFull(); orderGrid.setHeight("50px"); orderGrid.setMinHeight("0");
+        VerticalLayout orderTab = new VerticalLayout(orderGrid); orderTab.addClassNames("compact-tab-body", "app-card"); orderTab.setPadding(false); orderTab.setSizeFull(); orderTab.setFlexGrow(0, orderGrid);
 
         search.setPlaceholder("Введите название товара..."); search.setPrefixComponent(VaadinIcon.SEARCH.create());
         search.setClearButtonVisible(true); search.setWidthFull(); search.setValueChangeMode(ValueChangeMode.LAZY);
@@ -81,9 +81,9 @@ public class ReorderView extends VerticalLayout {
             add.setAriaLabel("Добавить в заказ: " + product.getName()); add.setTooltipText("Добавить в заказ");
             add.addThemeVariants(ButtonVariant.LUMO_PRIMARY); return add;
         }).setHeader("Действие").setWidth("100px").setFlexGrow(0);
-        GridColumns.configure(stockGrid, "Наименование", "Категория");
-        stockGrid.setSizeFull(); stockGrid.setMinHeight("0");
-        VerticalLayout stockTab = new VerticalLayout(search, stockGrid); stockTab.addClassNames("compact-tab-body", "app-card"); stockTab.setPadding(false); stockTab.setSizeFull(); stockTab.setFlexGrow(1, stockGrid);
+        GridColumns.configure(stockGrid, "Наименование");
+        stockGrid.setWidthFull(); stockGrid.setHeight("65vh"); stockGrid.setMinHeight("0");
+        VerticalLayout stockTab = new VerticalLayout(search, stockGrid); stockTab.addClassNames("compact-tab-body", "app-card"); stockTab.setPadding(false); stockTab.setSizeFull(); stockTab.setFlexGrow(0, stockGrid);
         TabSheet tabs = new TabSheet(); tabs.add("Заказ", orderTab); tabs.add("На складе", stockTab);
         tabs.setSizeFull(); tabs.addClassName("compact-tabs");
         tabs.addSelectedChangeListener(event -> { if (tabs.getSelectedIndex() == 1) refreshStock(); else apply(service.load()); });
@@ -121,10 +121,11 @@ public class ReorderView extends VerticalLayout {
         HorizontalLayout footer = new HorizontalLayout(addManual, export, repeat, clear, transfer,
                 new Button("Обновить", event -> { apply(service.load()); refreshStock(); }));
         footer.addClassNames("app-toolbar", "compact-actions"); footer.getStyle().set("flex-shrink", "0");
-        add(new H3("К закупке"), tabs, footer); setFlexGrow(1, tabs); apply(service.load()); refreshStock();
+        add(new H3("К закупке"), tabs, footer); setFlexGrow(0, tabs); apply(service.load()); refreshStock();
     }
     private void apply(PurchaseOrderService.Draft draft) {
         orderGrid.setItems(draft.rows());
+        GridColumns.updateGridHeight(orderGrid);
     }
     private void refreshStock() { stockGrid.setItems(service.catalog(search.getValue())); }
     private void openAddDialog(Product selected) {

@@ -22,7 +22,7 @@ public class AuditSettingsPanel extends VerticalLayout {
         DatePicker to = new DatePicker("По", LocalDate.now());
         from.setMax(LocalDate.of(9998,12,31)); to.setMax(LocalDate.of(9998,12,31));
         TextField username = new TextField("Пользователь"); username.setClearButtonVisible(true); username.setValueChangeMode(ValueChangeMode.LAZY);
-        Grid<AuditLog> grid = new Grid<>(AuditLog.class, false);
+        Grid<AuditLog> grid = ru.sklad.app.util.GridColumns.compact(new Grid<>(AuditLog.class, false));
         grid.addColumn(a -> a.getTimestamp().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss"))).setHeader("Время");
         grid.addColumn(AuditLog::getUsername).setHeader("Кто"); grid.addColumn(AuditLog::getAction).setHeader("Действие");
         grid.addColumn(a -> a.getEntityType() + ": " + a.getEntityName()).setHeader("Объект");

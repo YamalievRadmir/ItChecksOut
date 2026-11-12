@@ -37,8 +37,8 @@ import java.time.format.DateTimeFormatter;
 @jakarta.annotation.security.PermitAll
 public class ReportsView extends VerticalLayout {
     private List<ProductSales> displayedSales = List.of();
-    private final Grid<ReportsService.DaySales> dailyGrid = new Grid<>();
-    private final Grid<ReportsService.DayProduct> productGrid = new Grid<>();
+    private final Grid<ReportsService.DaySales> dailyGrid = ru.sklad.app.util.GridColumns.compact(new Grid<>());
+    private final Grid<ReportsService.DayProduct> productGrid = ru.sklad.app.util.GridColumns.compact(new Grid<>());
     private final Details dailyDetails = new Details();
     private final Details dayDetails = new Details();
     private final Span dayStatus = new Span();
@@ -75,7 +75,7 @@ public class ReportsView extends VerticalLayout {
         from.setRequiredIndicatorVisible(true);
         to.setRequiredIndicatorVisible(true);
         Span status = new Span();
-        Grid<ProductSales> grid = new Grid<>();
+        Grid<ProductSales> grid = ru.sklad.app.util.GridColumns.compact(new Grid<>());
         grid.addColumn(ProductSales::getProductName).setHeader("Товар").setFlexGrow(2);
         grid.addColumn(ProductSales::getQuantity).setHeader("Продано");
         grid.addColumn(ProductSales::getUnit).setHeader("Ед. изм.");
@@ -134,7 +134,7 @@ public class ReportsView extends VerticalLayout {
         grid.setWidthFull();
         grid.setHeight("360px");
         grid.getStyle().set("flex-shrink", "0");
-        grid.setMinHeight("250px");
+        grid.setMinHeight("0");
         filters.addClassName("app-toolbar");
         addComponentAtIndex(1, filters); addComponentAtIndex(2, status);
         leaders.add(export, grid);

@@ -17,8 +17,8 @@ final class PurchaseOrderHistory {
         if (draft.getItems().isEmpty()) return;
         var day = timestamp.toLocalDate();
         PurchaseOrder archived = orders.findFirstByIdNotAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDescIdDesc(
-                1L, day.atStartOfDay(), day.plusDays(1).atStartOfDay()).orElseGet(() -> {
-                    PurchaseOrder created = new PurchaseOrder(); created.setId(Math.addExact(orders.findMaximumId(), 1L));
+                draft.getId(), day.atStartOfDay(), day.plusDays(1).atStartOfDay()).orElseGet(() -> {
+                    PurchaseOrder created = new PurchaseOrder(); created.setId((java.util.UUID.randomUUID().getMostSignificantBits() & Long.MAX_VALUE));
                     created.setCreatedAt(timestamp);
                     return created;
                 });

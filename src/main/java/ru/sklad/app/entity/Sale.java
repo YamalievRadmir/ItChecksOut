@@ -15,7 +15,7 @@ import java.util.List;
 @Getter
 @Setter
 @NoArgsConstructor
-public class Sale {
+public class Sale extends ShopOwned {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

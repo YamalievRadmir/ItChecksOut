@@ -12,7 +12,7 @@ import java.util.List;
 @Entity
 @Getter
 @Setter
-public class Delivery {
+public class Delivery extends ShopOwned {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

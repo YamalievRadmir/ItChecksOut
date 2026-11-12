@@ -466,3 +466,130 @@ vaadin-dialog-overlay::part(overlay), vaadin-context-menu-overlay::part(overlay)
 @media (prefers-reduced-motion: reduce) {
   vaadin-button, vaadin-side-nav-item::part(content) { transition: none; }
 }
+
+/* Bounded operational tables; short screens scroll the route. */
+.workspace-table-page {
+  overflow-y: auto;
+}
+.workspace-table-page > .compact-tabs {
+  flex: 1 0 auto;
+  height: auto !important;
+}
+.workspace-table-page .compact-tabs::part(content) {
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  flex: 1 0 auto;
+}
+.workspace-table-page .compact-tab-body,
+.workspace-table-page .inventory-count-tab,
+.workspace-table-page .app-table-card {
+  display: flex;
+  flex-direction: column;
+  height: auto !important;
+  min-height: 0;
+  flex: 0 0 auto;
+  overflow: visible;
+}
+.workspace-table-page vaadin-grid {
+  height: 65vh;
+  min-height: 0 !important;
+  flex: 0 0 auto;
+}
+.workspace-table-page .inventory-count-tab > :not(vaadin-grid) {
+  flex-shrink: 0;
+}
+
+/* Compact density for every Grid, including component-rendered cells. */
+vaadin-grid {
+  --lumo-size-m: 32px;
+  --lumo-size-s: 28px;
+  --lumo-font-size-m: 13px;
+  --vaadin-grid-cell-padding: 4px 8px;
+  font-size: 13px;
+}
+vaadin-grid::part(cell),
+vaadin-grid::part(header-cell),
+vaadin-grid::part(body-cell),
+vaadin-grid.sales-grid::part(body-cell) {
+  --vaadin-grid-cell-padding: 4px 8px;
+  min-height: 32px;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.25;
+}
+vaadin-grid vaadin-grid-cell-content { font-size: 13px; line-height: 1.25; }
+vaadin-grid :is(vaadin-number-field, vaadin-integer-field, vaadin-big-decimal-field,
+  vaadin-text-field, vaadin-password-field, vaadin-combo-box, vaadin-select) {
+  --lumo-size-m: 28px;
+  --lumo-size-s: 28px;
+  --vaadin-input-field-height: 28px;
+  padding-block: 0;
+  min-height: 0;
+  font-size: 13px;
+}
+vaadin-grid :is(vaadin-number-field, vaadin-integer-field, vaadin-big-decimal-field,
+  vaadin-text-field, vaadin-password-field, vaadin-combo-box, vaadin-select)::part(input-field) {
+  min-height: 28px;
+  height: 28px;
+  font-size: 13px;
+}
+vaadin-grid vaadin-button {
+  --lumo-button-size: 28px;
+  min-height: 28px;
+  height: 28px;
+  margin-block: 0;
+  font-size: 13px;
+}
+
+/* Fixed viewport height must win over parent layout flex-grow rules. */
+vaadin-grid {
+  max-height: 65vh;
+  min-height: 0 !important;
+  flex: 0 0 auto !important;
+}
+vaadin-grid::part(row), vaadin-grid::part(body-row) { flex-grow: 0; }
+
+/* Notes and debts share the workspace, each list scrolls independently. */
+.notes-view { gap: 0; min-height: 0; }
+.notes-columns { align-items: stretch; gap: 16px; min-width: 0; min-height: 0; }
+.notes-column { gap: 10px; overflow: hidden; box-sizing: border-box; }
+.notes-column-toolbar { flex-shrink: 0; flex-wrap: wrap; gap: 8px; }
+.notes-column-toolbar h3 { margin: 0; font-size: 17px; }
+.notes-column-toolbar vaadin-button { margin: 0; flex-shrink: 0; }
+.notes-view .notes-list {
+  display: flex; flex-direction: column; gap: 10px;
+  height: 0; min-height: 0; overflow-y: auto;
+  padding: 2px 6px 12px 0; box-sizing: border-box;
+  overscroll-behavior: contain;
+}
+.notes-view .note-card { flex: 0 0 auto; padding: 12px; font-size: 13px; box-shadow: none; }
+.notes-view .note-heading { gap: 8px; margin-bottom: 4px; }
+.notes-view .note-heading h3 { font-size: 15px; line-height: 1.35; }
+.notes-view .note-content { margin: 6px 0 8px; line-height: 1.45; }
+.notes-view .note-card .metric-label { font-size: 12px; }
+.notes-view .note-debt-badge { display: block; width: fit-content; padding: 4px 10px; margin: 8px 0; font-size: 22px; line-height: 1.2; }
+.notes-view .note-card vaadin-button { margin: 2px 8px 0 0; }
+.notes-view .note-resolved { opacity: .6; background: var(--lumo-contrast-5pct); color: var(--lumo-secondary-text-color); }
+@media (max-width: 700px) {
+  .notes-columns { flex-direction: column; }
+  .notes-columns > .notes-column { width: 100% !important; height: 0 !important; flex: 1 1 0; }
+}
+
+/* Carts fit their data; large carts retain their own bounded scrollbar. */
+vaadin-grid.dynamic-height-grid,
+.sales-basket > vaadin-grid.dynamic-height-grid {
+  height: var(--dynamic-grid-height) !important;
+  min-height: 0 !important;
+  max-height: min(500px, 60vh);
+  flex: 0 0 auto !important;
+}
+.reorder-view > .compact-tabs { flex: 0 0 auto; height: auto !important; }
+.sales-basket { justify-content: flex-start; }
+
+/* Delivery filters and receipt totals stay adjacent to their data-sized tables. */
+.deliveries-view > .compact-tabs { flex: 0 0 auto; height: auto !important; }
+.deliveries-view .compact-tabs::part(content) { overflow: visible; }
+.deliveries-view .compact-tab-body { height: auto !important; flex: 0 0 auto; overflow: visible; }
+.deliveries-view .app-toolbar { flex-shrink: 0; }
+.sales-history-view > .app-table-card { height: auto !important; flex: 0 0 auto; }

@@ -15,7 +15,16 @@ public class SessionCart {
     private String discountType = "%";
     private boolean discountApplied;
     private String paymentMethod = "Наличные";
-    public Map<Long, CartItem> getItems() { return items; }
+    private String owner;
+    public Map<Long, CartItem> getItems() {
+        var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        String current = authentication == null ? "" : authentication.getName();
+        if (owner != null && !owner.equals(current)) {
+            items.clear(); discountValue = 0; discountType = "%"; discountApplied = false; paymentMethod = "Наличные";
+        }
+        owner = current;
+        return items;
+    }
     public double getDiscountValue() { return discountValue; }
     public String getDiscountType() { return discountType; }
     public boolean isDiscountApplied() { return discountApplied; }

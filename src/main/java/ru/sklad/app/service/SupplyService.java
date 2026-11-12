@@ -72,7 +72,7 @@ public class SupplyService {
         supply.setReceiptKey(receiptKey);
         supply.setTotalSum(quantity.multiply(purchasePrice).setScale(2, RoundingMode.HALF_UP));
         supplies.save(supply);
-        audit.logAction("СОЗДАНИЕ", "Поставка", product.getName(), "Остаток: " + stock + " → " + product.getStockQuantity()
+        audit.safeLogAction("СОЗДАНИЕ", "Поставка", product.getName(), "Остаток: " + stock + " → " + product.getStockQuantity()
                 + "; Цена закупа: " + previousPrice + " → " + purchasePrice + "; Накладная: " + supply.getInvoiceNumber()
                 + "; Поставщик: " + supply.getSupplier());
     }

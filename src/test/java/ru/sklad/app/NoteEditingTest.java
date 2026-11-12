@@ -7,7 +7,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import ru.sklad.app.service.*;
 import ru.sklad.app.repository.NoteRepository;
 import static org.junit.jupiter.api.Assertions.*;
-@DataJpaTest(showSql=false) @Import(NoteService.class)
+@DataJpaTest(showSql=false)
+@org.junit.jupiter.api.extension.ExtendWith(ru.sklad.app.TestShopContext.class) @Import({ru.sklad.app.util.SecurityUtils.class, NoteService.class})
 class NoteEditingTest {
     @Autowired NoteService service;
     @Autowired NoteRepository notes;

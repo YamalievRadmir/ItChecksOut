@@ -74,7 +74,7 @@ public class HeldCartService {
         try { cart.setCartData(mapper.writeValueAsString(new CartData(items, discount, discountType, paymentMethod))); }
         catch (JsonProcessingException exception) { throw new IllegalArgumentException("Не удалось сохранить отложенный чек"); }
         carts.saveAndFlush(cart);
-        audit.logAction("СОЗДАНИЕ", "Отложенный чек", "#" + cart.getId(), "Товары: " + quantities + "; Итог: " + total);
+        audit.safeLogAction("СОЗДАНИЕ", "Отложенный чек", "#" + cart.getId(), "Товары: " + quantities + "; Итог: " + total);
     }
     @Transactional
     public RestoredCart restore(Long id) {
@@ -93,7 +93,7 @@ public class HeldCartService {
             throw new IllegalArgumentException("Данные отложенного чека повреждены");
         BigDecimal discount = permissions.hasPermission("canGiveDiscount") ? data.discountValue() : BigDecimal.ZERO;
         carts.delete(cart); carts.flush();
-        audit.logAction("УДАЛЕНИЕ", "Отложенный чек", "#" + id, "Возвращен в кассовую корзину");
+        audit.safeLogAction("УДАЛЕНИЕ", "Отложенный чек", "#" + id, "Возвращен в кассовую корзину");
         return new RestoredCart(List.copyOf(lines), discount, data.discountType(), data.paymentMethod());
     }
 }

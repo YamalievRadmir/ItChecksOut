@@ -47,7 +47,7 @@ public class BackupService {
         catch (IllegalStateException exception) { log.error("Ежедневный бэкап не создан; следующий запуск по расписанию", exception); }
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     public Path createManualBackup() { return createBackup(); }
 
     // Serialize scheduled and manual requests so that archives cannot overwrite one another.
@@ -71,7 +71,7 @@ public class BackupService {
             catch (AtomicMoveNotSupportedException exception) { Files.move(temporary, target); }
             temporary = null;
             log.info("Бэкап создан: {} ({} байт)", target.toAbsolutePath().normalize(), Files.size(target));
-            try { audit.logAction("СОЗДАНИЕ", "Резервная копия", target.getFileName().toString(), "Резервная копия H2 создана и проверена"); }
+            try { audit.safeLogAction("СОЗДАНИЕ", "Резервная копия", target.getFileName().toString(), "Резервная копия H2 создана и проверена"); }
             catch (Exception exception) { report("Архив создан, но запись аудита не сохранена", exception); }
             cleanOldBackups(target);
             return target;

@@ -37,7 +37,7 @@ public class ReceiptService {
 
     @PreAuthorize("@permissionService.canAccess('sales-history') and @permissionService.hasPermission('canEditReceipts')")
     public List<Choice> choices() {
-        return products.findAll().stream().sorted(Comparator.comparing(Product::getName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
+        return products.findAllByShop(ru.sklad.app.util.SecurityUtils.currentShop()).stream().sorted(Comparator.comparing(Product::getName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
                 .map(p -> new Choice(p.getId(), p.getName(), p.getRetailPrice())).toList();
     }
 
@@ -96,7 +96,7 @@ public class ReceiptService {
         stocks.forEach((productId, stock) -> locked.get(productId).setStockQuantity(stock));
         sale.setTotalSum(total); sale.setDiscountSum(discountSum); sale.setFinalSum(total.subtract(discountSum));
         sale.setPaymentMethod(payment); sales.saveAndFlush(sale);
-        audit.logAction("ИЗМЕНЕНИЕ", "Продажа", "#" + sale.getId(), "Редактирование чека. До: " + before + "; После: " + revision(sale));
+        audit.safeLogAction("ИЗМЕНЕНИЕ", "Продажа", "#" + sale.getId(), "Редактирование чека. До: " + before + "; После: " + revision(sale));
         return snapshot(sale);
     }
 

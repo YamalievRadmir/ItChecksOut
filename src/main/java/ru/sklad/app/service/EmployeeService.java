@@ -39,7 +39,7 @@ public class EmployeeService {
         employee.setBaseSalary(rate);
         employee.setPhone(phone);
         Employee saved = employees.save(employee);
-        audit.logAction("СОЗДАНИЕ", "Сотрудник", saved.getFullName() + " (#" + saved.getId() + ")", "Должность: " + role + "; Ставка: " + saved.getBaseSalary());
+        audit.safeLogAction("СОЗДАНИЕ", "Сотрудник", saved.getFullName() + " (#" + saved.getId() + ")", "Должность: " + role + "; Ставка: " + saved.getBaseSalary());
         return saved;
     }
 
@@ -66,7 +66,7 @@ public class EmployeeService {
         employee.setFullName(fullName.trim()); employee.setRole(role);
         employee.setBaseSalary(rate); employee.setPhone(phone);
         Employee saved = employees.save(employee);
-        audit.logAction("ИЗМЕНЕНИЕ", "Сотрудник", saved.getFullName() + " (#" + saved.getId() + ")", details);
+        audit.safeLogAction("ИЗМЕНЕНИЕ", "Сотрудник", saved.getFullName() + " (#" + saved.getId() + ")", details);
         return saved;
     }
 
@@ -78,7 +78,7 @@ public class EmployeeService {
         int removedShifts = shifts.deleteForEmployee(id);
         employees.delete(employee);
         employees.flush();
-        audit.logAction("УДАЛЕНИЕ", "Сотрудник", employee.getFullName() + " (#" + id + ")",
+        audit.safeLogAction("УДАЛЕНИЕ", "Сотрудник", employee.getFullName() + " (#" + id + ")",
                 "Удален сотрудник и связанные записи смен: " + removedShifts);
     }
 
@@ -118,7 +118,7 @@ public class EmployeeService {
                 updated.add(shift);
             }
             shifts.saveAll(updated);
-            audit.logAction("ИЗМЕНЕНИЕ", "Сотрудник", employee.getFullName() + " (#" + employeeId + ")",
+            audit.safeLogAction("ИЗМЕНЕНИЕ", "Сотрудник", employee.getFullName() + " (#" + employeeId + ")",
                     "Сохранен табель за " + month + "; Отработанные дни: " + before + " → " + new java.util.TreeSet<>(days));
         }
     }

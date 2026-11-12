@@ -43,7 +43,7 @@ public class ReceiptDialog extends Dialog {
         setHeaderTitle("Чек № " + number + " от " + receipt.date().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")));
         body.removeAll(); getFooter().removeAll(); rows.clear(); sums.clear();
         receipt.lines().forEach(line -> rows.add(new Row(line)));
-        Grid<Row> grid = new Grid<>(); grid.setId("receipt-items");
+        Grid<Row> grid = ru.sklad.app.util.GridColumns.compact(new Grid<>()); grid.setId("receipt-items");
         grid.addColumn(row -> row.name).setHeader("Наименование");
         if (editing) {
             grid.addComponentColumn(row -> field(row, false)).setHeader("Количество").setWidth("150px");
@@ -58,12 +58,12 @@ public class ReceiptDialog extends Dialog {
         }).setHeader("Сумма");
         if (editing) grid.addComponentColumn(row -> {
             Button remove = new Button(VaadinIcon.TRASH.create(), event -> {
-                rows.remove(row); sums.clear(); grid.getDataProvider().refreshAll(); updateTotals();
+                rows.remove(row); sums.clear(); grid.getDataProvider().refreshAll(); GridColumns.updateGridHeight(grid); updateTotals();
             });
             remove.addThemeVariants(ButtonVariant.LUMO_ERROR); remove.setAriaLabel("Удалить: " + row.name); return remove;
         }).setHeader("Удалить");
         GridColumns.configure(grid, "Наименование"); grid.setItems(rows);
-        grid.setWidthFull(); grid.setHeight("min(420px, 45dvh)"); body.add(grid);
+        grid.setWidthFull(); GridColumns.updateGridHeight(grid); body.add(grid);
         discount = new BigDecimalField("Скидка, ₽"); discount.setValue(receipt.discount());
         discount.setValueChangeMode(ValueChangeMode.EAGER);
         payment = new ComboBox<>("Способ оплаты"); payment.setItems("CASH", "CASHLESS");

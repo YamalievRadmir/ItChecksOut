@@ -59,14 +59,14 @@ public class BatchSupplyService {
             PurchaseOrderHistory.remember(orders, order);
             order.getItems().clear();
             orders.saveAndFlush(order);
-            audit.logAction("ИЗМЕНЕНИЕ", "Заявка на закупку", "#" + order.getId(),
+            audit.safeLogAction("ИЗМЕНЕНИЕ", "Заявка на закупку", "#" + order.getId(),
                     "Партия оприходована, заявка очищена; позиций: " + lines.size() + "; Накладная: " + invoice);
         }
     }
 
     private PurchaseOrder lockUnchangedOrder(PendingSupply pending) {
-        if (!Long.valueOf(1L).equals(pending.orderId()))
-            throw new IllegalArgumentException("Передайте текущий заказ из «К закупке» заново");
+        if (!PurchaseOrder.currentDraftId().equals(pending.orderId()))
+            throw new IllegalArgumentException("Заказ недоступен в текущем магазине");
         var order = orders.findLockedById(pending.orderId())
                 .orElseThrow(() -> new IllegalArgumentException("Заявка больше не существует"));
         var current = order.getItems().stream().collect(Collectors.toMap(PurchaseOrderItem::getId, Function.identity()));

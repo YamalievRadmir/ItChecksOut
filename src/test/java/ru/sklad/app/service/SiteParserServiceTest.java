@@ -11,7 +11,8 @@ import org.jsoup.Jsoup;
 import static org.mockito.Mockito.*;
 import static org.junit.jupiter.api.Assertions.*;
 
-@DataJpaTest(showSql=false) @Import({SiteParserService.class,SiteParserServiceTest.Config.class})
+@DataJpaTest(showSql=false)
+@org.junit.jupiter.api.extension.ExtendWith(ru.sklad.app.TestShopContext.class) @Import({ru.sklad.app.util.SecurityUtils.class, SiteParserService.class,SiteParserServiceTest.Config.class})
 class SiteParserServiceTest {
     @TestConfiguration static class Config { @Bean ObjectMapper mapper() { return new ObjectMapper(); } }
     @MockitoSpyBean SiteParserService parser;

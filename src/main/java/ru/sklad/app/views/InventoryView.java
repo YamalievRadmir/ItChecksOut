@@ -28,8 +28,8 @@ import java.util.*;
 @RolesAllowed({"ADMIN", "SELLER"})
 public class InventoryView extends VerticalLayout {
     private final InventoryService service;
-    private final Grid<Product> grid = new Grid<>(Product.class, false);
-    private final Grid<Inventory> history = new Grid<>(Inventory.class, false);
+    private final Grid<Product> grid = ru.sklad.app.util.GridColumns.compact(new Grid<>(Product.class, false));
+    private final Grid<Inventory> history = ru.sklad.app.util.GridColumns.compact(new Grid<>(Inventory.class, false));
     private final Map<Long, BigDecimal> actual = new LinkedHashMap<>();
     private final Map<Long, BigDecimal> expected = new HashMap<>();
     private final Map<Long, Span> differences = new HashMap<>();
@@ -39,7 +39,7 @@ public class InventoryView extends VerticalLayout {
     private final TextField search = new TextField("Поиск товара");
 
     public InventoryView(InventoryService service) {
-        this.service = service; setSizeFull(); addClassNames("inventory-view", "compact-page"); getStyle().set("overflow", "hidden");
+        this.service = service; setSizeFull(); addClassNames("inventory-view", "compact-page", "workspace-table-page"); getStyle().set("overflow", "auto");
         DatePicker date = new DatePicker("Дата инвентаризации", LocalDate.now());
         date.setMin(LocalDate.of(1, 1, 1)); date.setMax(LocalDate.of(9999, 12, 31)); date.setRequiredIndicatorVisible(true);
         TextField employee = new TextField("ФИО проводящего"); employee.setMaxLength(255); employee.setRequiredIndicatorVisible(true);
@@ -53,8 +53,8 @@ public class InventoryView extends VerticalLayout {
         grid.addColumn(Product::getName).setHeader("Товар").setFlexGrow(2);
         grid.addColumn(p -> number(InventoryService.stock(p))).setHeader("Учетное кол-во");
         grid.addComponentColumn(product -> {
-            NumberField field = new NumberField(); field.setAriaLabel("Фактическое количество: " + product.getName());
-            field.setMin(0); field.setMax(99999999.99); field.setStep(0.01); field.setWidthFull();
+            NumberField field = new NumberField(); field.addThemeVariants(com.vaadin.flow.component.textfield.TextFieldVariant.LUMO_SMALL); field.setAriaLabel("Фактическое количество: " + product.getName());
+            field.setMin(0); field.setMax(99999999.99); field.setStep(0.01); field.setWidth("120px");
             field.setErrorMessage("Введите неотрицательное число, не более двух знаков после запятой");
             field.setValueChangeMode(ValueChangeMode.EAGER);
             if (actual.containsKey(product.getId())) field.setValue(actual.get(product.getId()).doubleValue());
@@ -72,13 +72,13 @@ public class InventoryView extends VerticalLayout {
                 updateDifference(product.getId());
             });
             return field;
-        }).setHeader("Фактическое кол-во").setWidth("230px").setFlexGrow(0);
+        }).setHeader("Фактическое кол-во").setAutoWidth(true).setFlexGrow(0);
         grid.addComponentColumn(product -> {
             Span difference = new Span(); differences.put(product.getId(), difference); updateDifference(product.getId());
             return difference;
         }).setHeader("Разница");
         GridColumns.configure(grid, "Товар");
-        grid.setId("inventory-products"); grid.setSizeFull(); grid.setMinHeight("0");
+        grid.setId("inventory-products"); grid.setWidthFull(); grid.setHeight("65vh"); grid.setMinHeight("0");
         TextArea notes = new TextArea("Примечания"); notes.setWidthFull(); notes.setHeight("80px"); notes.getStyle().set("flex-shrink", "0");
         Button finish = new Button("Завершить инвентаризацию", e -> {
             if (date.isInvalid() || !invalid.isEmpty() || fields.values().stream().anyMatch(NumberField::isInvalid)) {
@@ -93,12 +93,12 @@ public class InventoryView extends VerticalLayout {
         history.addColumn(i -> i.getInventoryDate().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss"))).setHeader("Дата");
         history.addColumn(Inventory::getEmployeeName).setHeader("Кто проводил"); history.addColumn(Inventory::getNotes).setHeader("Примечания");
         GridColumns.configure(history, "Кто проводил", "Примечания");
-        history.setSizeFull(); history.setMinHeight("0");
+        history.setWidthFull(); history.setHeight("65vh"); history.setMinHeight("0");
         search.setTooltipText("Пустое фактическое количество сохраняет учетный остаток; 0 обнуляет его. Поиск сохраняет введенные значения.");
         Details notesSection = new Details("Примечания", notes); notesSection.setWidthFull();
         HorizontalLayout footer = new HorizontalLayout(notesSection, finish); footer.setWidthFull();
         footer.addClassNames("app-toolbar", "inventory-actions"); footer.setAlignItems(Alignment.START);
-        Div countTab = new Div(toolbar, grid, footer); countTab.setSizeFull(); countTab.addClassNames("inventory-count-tab", "app-card");
+        VerticalLayout countTab = new VerticalLayout(toolbar, grid, footer); countTab.setPadding(false); countTab.setFlexGrow(0, grid); countTab.setSizeFull(); countTab.addClassNames("inventory-count-tab", "app-card");
         TabSheet tabs = new TabSheet(); tabs.addClassNames("compact-tabs", "inventory-tabs"); tabs.setSizeFull();
         tabs.add("Сверка остатков", countTab); tabs.add("История", ru.sklad.app.util.AppCards.table(history));
         add(new H3("Инвентаризация"), tabs); setFlexGrow(1, tabs);

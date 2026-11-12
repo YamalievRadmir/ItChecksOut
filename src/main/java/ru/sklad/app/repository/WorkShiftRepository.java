@@ -9,13 +9,17 @@ import ru.sklad.app.entity.WorkShift;
 import java.time.LocalDate;
 import java.util.List;
 
-public interface WorkShiftRepository extends JpaRepository<WorkShift, Long> {
+public interface WorkShiftRepository extends ShopRepositoryBase<WorkShift, Long> {
     @EntityGraph(attributePaths = "employee")
-    List<WorkShift> findByShiftDateBetween(LocalDate start, LocalDate end);
+    @org.springframework.security.access.prepost.PreAuthorize("#p0 != null and #p0.id == T(ru.sklad.app.util.SecurityUtils).currentShop().id")
+    List<WorkShift> findByShopAndShiftDateBetween(ru.sklad.app.entity.Shop shop, LocalDate start, LocalDate end);
+    default List<WorkShift> findByShiftDateBetween(LocalDate start, LocalDate end) { return findByShopAndShiftDateBetween(ru.sklad.app.util.SecurityUtils.currentShop(), start, end); }
 
-    List<WorkShift> findByEmployeeIdAndShiftDateBetween(Long employeeId, LocalDate start, LocalDate end);
+    @org.springframework.security.access.prepost.PreAuthorize("#p0 != null and #p0.id == T(ru.sklad.app.util.SecurityUtils).currentShop().id")
+    List<WorkShift> findByShopAndEmployeeIdAndShiftDateBetween(ru.sklad.app.entity.Shop shop, Long employeeId, LocalDate start, LocalDate end);
+    default List<WorkShift> findByEmployeeIdAndShiftDateBetween(Long employeeId, LocalDate start, LocalDate end) { return findByShopAndEmployeeIdAndShiftDateBetween(ru.sklad.app.util.SecurityUtils.currentShop(), employeeId, start, end); }
 
     @Modifying
-    @Query("delete from WorkShift s where s.employee.id = :employeeId")
+    @Query("delete from WorkShift s where s.shop = :#{T(ru.sklad.app.util.SecurityUtils).currentShop()} and s.employee.id = :employeeId")
     int deleteForEmployee(@Param("employeeId") Long employeeId);
 }

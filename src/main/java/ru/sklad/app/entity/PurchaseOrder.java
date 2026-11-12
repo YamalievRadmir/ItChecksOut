@@ -9,10 +9,11 @@ import java.util.*;
 @Entity
 @Getter
 @Setter
-public class PurchaseOrder {
-    // ID 1 is the shared locked draft; higher IDs hold saved daily snapshots.
+public class PurchaseOrder extends ShopOwned {
+    // Each shop has a deterministic draft ID; snapshots use independent IDs.
     @Id
-    private Long id = 1L;
+    private Long id = currentDraftId();
+    public static Long currentDraftId() { long shop = ru.sklad.app.util.SecurityUtils.currentShop().getId(); return shop == 1L ? 1L : -shop; }
     @Column(nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
     @Column(nullable = false)

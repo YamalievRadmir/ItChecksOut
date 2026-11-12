@@ -16,7 +16,8 @@ import java.util.concurrent.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 @DataJpaTest(showSql = false)
-@Import(SalesService.class)
+@org.junit.jupiter.api.extension.ExtendWith(ru.sklad.app.TestShopContext.class)
+@Import({ru.sklad.app.util.SecurityUtils.class, SalesService.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class SalesConcurrencyTest {
     @Autowired ProductRepository products;
@@ -33,11 +34,12 @@ class SalesConcurrencyTest {
         long before = sales.count();
         var ready = new CountDownLatch(2);
         var start = new CountDownLatch(1);
-        Callable<Boolean> pay = () -> {
-            ready.countDown(); start.await();
+        var shop = ru.sklad.app.util.SecurityUtils.currentShop();
+        Callable<Boolean> pay = () -> ru.sklad.app.util.SecurityUtils.inShop(shop, () -> {
+            ready.countDown(); try { start.await(); } catch (InterruptedException ex) { throw new RuntimeException(ex); }
             try { service.conductSale(Map.of(id, BigDecimal.ONE), Map.of(id, BigDecimal.TEN)); return true; }
             catch (InsufficientStockException expected) { return false; }
-        };
+        });
         var pool = Executors.newFixedThreadPool(2);
         try {
             var first = pool.submit(pay); var second = pool.submit(pay);

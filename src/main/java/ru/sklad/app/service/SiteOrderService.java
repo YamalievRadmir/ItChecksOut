@@ -67,7 +67,7 @@ public class SiteOrderService {
         if (total.compareTo(new BigDecimal("99999999999999999.99")) > 0) throw new IllegalArgumentException("Total overflow");
         delivery.setTotalSum(total); delivery.setComment(comment.toString());
         Delivery saved = deliveries.saveAndFlush(delivery);
-        audit.logAction("СОЗДАНИЕ", "Доставка", "#" + saved.getId(), "Заказ с сайта; позиций: " + lines.size());
+        audit.safeLogAction("СОЗДАНИЕ", "Доставка", "#" + saved.getId(), "Заказ с сайта; позиций: " + lines.size());
         return saved;
     }
 }

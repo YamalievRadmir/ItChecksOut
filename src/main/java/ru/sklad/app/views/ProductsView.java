@@ -36,17 +36,19 @@ import java.util.Objects;
 
 @Route(value = "products", layout = MainLayout.class)
 @PageTitle("Товары и услуги — Всё сходится!")
-@PermitAll
+@jakarta.annotation.security.RolesAllowed({"ADMIN", "SELLER"})
 public class ProductsView extends VerticalLayout {
 
+    private final ru.sklad.app.service.ProductFileImporter fileImporter;
     private final ProductRepository repository;
     private final ru.sklad.app.service.ProductService productService;
     private final ru.sklad.app.service.PermissionService permissions;
-    private final Grid<Product> grid = new Grid<>(Product.class, false);
+    private final Grid<Product> grid = ru.sklad.app.util.GridColumns.compact(new Grid<>(Product.class, false));
     private List<Product> displayedProducts = List.of();
 
     public ProductsView(ProductRepository repository, ru.sklad.app.service.PermissionService permissions,
-                        ru.sklad.app.service.ProductService productService) {
+                        ru.sklad.app.service.ProductService productService, ru.sklad.app.service.ProductFileImporter fileImporter) {
+        this.fileImporter = fileImporter;
         this.repository = repository;
         this.productService = productService;
         this.permissions = permissions;
@@ -88,7 +90,9 @@ public class ProductsView extends VerticalLayout {
                     if (permissions.hasPermission("canSeePurchasePrice")) columns.add(4, new ExcelExporter.Column<>("Цена закупа", Product::getPurchasePrice));
                     return ExcelExporter.export("Товары", columns, displayedProducts);
                 });
-        HorizontalLayout toolbar = new HorizontalLayout(searchField, addButton, export);
+        Button importButton = new Button("Загрузить из файла", VaadinIcon.UPLOAD.create(), event -> openImportDialog());
+        importButton.setVisible(isAdmin());
+        HorizontalLayout toolbar = new HorizontalLayout(searchField, addButton, importButton, export);
         toolbar.setWidthFull();
         toolbar.addClassName("app-toolbar");
         toolbar.setAlignItems(Alignment.CENTER);
@@ -117,14 +121,44 @@ public class ProductsView extends VerticalLayout {
 
         updateGrid();
         GridColumns.configure(grid, "Наименование", "Категория");
-        grid.setSizeFull();
+        grid.setWidthFull(); grid.setHeight("65vh");
         var card = ru.sklad.app.util.AppCards.table(grid);
         add(card);
         setFlexGrow(1, card);
     }
 
+    private void openImportDialog() {
+        if (!isAdmin()) return;
+        Dialog dialog = new Dialog(); dialog.setHeaderTitle("Загрузка товаров из Excel");
+        dialog.setWidth("560px"); dialog.setMaxWidth("95vw"); dialog.setModal(true);
+        var buffer = new com.vaadin.flow.component.upload.receivers.MemoryBuffer();
+        var upload = new com.vaadin.flow.component.upload.Upload(buffer);
+        upload.setAcceptedFileTypes(".xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        upload.setMaxFiles(1); upload.setMaxFileSize(20 * 1024 * 1024); upload.setDropAllowed(true);
+        upload.setWidthFull();
+        var hint = new com.vaadin.flow.component.html.Paragraph("Перетащите Excel файл (.xlsx) сюда. Мы автоматически найдем колонки 'Наименование', 'Цена' и 'Остаток'.");
+        upload.setDropLabel(new com.vaadin.flow.component.html.Span("Перетащите Excel файл (.xlsx) сюда"));
+        upload.addSucceededListener(event -> {
+            if (!event.getFileName().toLowerCase(java.util.Locale.ROOT).endsWith(".xlsx")) {
+                importError("Разрешены только файлы .xlsx"); return;
+            }
+            try (var input = buffer.getInputStream()) {
+                int count = fileImporter.importFile(input);
+                dialog.close(); updateGrid(); Notification.show("Успешно обработано строк: " + count);
+            } catch (Exception ex) { importError("" + (ex.getMessage() == null ? "Не удалось прочитать файл" : ex.getMessage())); }
+        });
+        upload.addFileRejectedListener(event -> importError(event.getErrorMessage()));
+        upload.addFailedListener(event -> importError("Ошибка загрузки файла: " + event.getReason().getMessage()));
+        VerticalLayout content = new VerticalLayout(hint, upload); content.setPadding(false); dialog.add(content);
+        dialog.getFooter().add(new Button("Закрыть", event -> dialog.close())); dialog.open();
+    }
+    private void importError(String message) {
+        Notification notification = Notification.show(message, 7000, Notification.Position.MIDDLE);
+        notification.addThemeVariants(com.vaadin.flow.component.notification.NotificationVariant.LUMO_ERROR);
+    }
+
     private void updateGrid() {
-        showProducts(repository.findAll());
+        showProducts(repository.findAllByShop(ru.sklad.app.util.SecurityUtils.currentShop()));
     }
 
     private void showProducts(List<Product> products) {
@@ -151,7 +185,7 @@ public class ProductsView extends VerticalLayout {
         var alternatives = new com.vaadin.flow.component.combobox.MultiSelectComboBox<Product>("Альтернативы при отсутствии");
         var additives = new com.vaadin.flow.component.combobox.MultiSelectComboBox<Product>("Рекомендуемые добавки");
         if (isAdmin()) {
-            var choices = repository.findAll().stream().filter(p -> !Objects.equals(p.getId(), product.getId())).toList();
+            var choices = repository.findAllByShop(ru.sklad.app.util.SecurityUtils.currentShop()).stream().filter(p -> !Objects.equals(p.getId(), product.getId())).toList();
             var relations = productService.relations(product.getId());
             alternatives.setItemLabelGenerator(Product::getName); alternatives.setItems(choices);
             var additiveChoices = choices.stream().filter(p -> {
@@ -176,7 +210,7 @@ public class ProductsView extends VerticalLayout {
 
         ComboBox<String> category = new ComboBox<>("Категория");
         List<String> categories = new ArrayList<>(List.of("Зерновые", "Бакалея", "Корма"));
-        repository.findAll().stream().map(Product::getCategory)
+        repository.findAllByShop(ru.sklad.app.util.SecurityUtils.currentShop()).stream().map(Product::getCategory)
                 .filter(Objects::nonNull).filter(value -> !value.isBlank()).distinct().sorted()
                 .filter(value -> !categories.contains(value)).forEach(categories::add);
         if (product.getCategory() != null && !categories.contains(product.getCategory())) {

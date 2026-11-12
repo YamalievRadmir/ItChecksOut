@@ -57,7 +57,7 @@ public class ProductRecommendationsInitializer {
         for(Product p:all) if(feed(p)) for(Product other:supplements)
             if(!p.getId().equals(other.getId()) && p.getRecommendedAdditives().add(other)) additives++;
         products.flush();
-        if(links>0 || additives>0) audit.logAction("ИЗМЕНЕНИЕ", "Каталог", "Автоподбор рекомендаций",
+        if(links>0 || additives>0) audit.safeLogAction("ИЗМЕНЕНИЕ", "Каталог", "Автоподбор рекомендаций",
                 "Связей альтернатив: "+links+"; рекомендаций добавок: "+additives);
         LoggerFactory.getLogger(getClass()).info("Автозаполнение рекомендаций: связей альтернатив {}, добавок {}",links,additives);
     }

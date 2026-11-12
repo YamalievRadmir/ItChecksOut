@@ -33,11 +33,11 @@ import java.util.*;
 
 @Route(value = "employees", layout = MainLayout.class)
 @PageTitle("Сотрудники — Всё сходится!")
-@jakarta.annotation.security.PermitAll
+@jakarta.annotation.security.RolesAllowed({"ADMIN", "SELLER"})
 public class EmployeesView extends VerticalLayout {
     private final EmployeeService service;
-    private final Grid<Employee> employees = new Grid<>(Employee.class, false);
-    private final Grid<Employee> timesheet = new Grid<>(Employee.class, false);
+    private final Grid<Employee> employees = ru.sklad.app.util.GridColumns.compact(new Grid<>(Employee.class, false));
+    private final Grid<Employee> timesheet = ru.sklad.app.util.GridColumns.compact(new Grid<>(Employee.class, false));
     private final ComboBox<Month> month = new ComboBox<>("Месяц");
     private final NumberField year = new NumberField("Год");
     private final Span status = new Span();
@@ -63,7 +63,7 @@ public class EmployeesView extends VerticalLayout {
         employees.addColumn(Employee::getPhone).setHeader("Телефон");
         GridColumns.configure(employees, "ФИО", "Должность");
         employees.setItems(service.employees());
-        employees.setSizeFull();
+        employees.setWidthFull(); employees.setHeight("65vh");
         employees.addItemDoubleClickListener(event -> openEmployeeDialog(event.getItem()));
         Button addEmployee = new Button("Добавить сотрудника", event -> openEmployeeDialog(null));
         addEmployee.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
@@ -71,7 +71,7 @@ public class EmployeesView extends VerticalLayout {
         employeeTab.setSizeFull();
         employeeTab.setPadding(false);
         employeeTab.addClassNames("compact-tab-body", "app-card");
-        employeeTab.setFlexGrow(1, employees);
+        employeeTab.setFlexGrow(0, employees);
 
         YearMonth current = YearMonth.now();
         month.setItems(Month.values());
@@ -87,8 +87,8 @@ public class EmployeesView extends VerticalLayout {
         HorizontalLayout period = new HorizontalLayout(month, year);
         period.setAlignItems(Alignment.BASELINE);
         period.getStyle().set("flex-wrap", "wrap");
-        timesheet.setSizeFull();
-        timesheet.setMinHeight("160px");
+        timesheet.setWidthFull(); timesheet.setHeight("65vh");
+        timesheet.setMinHeight("0");
         save.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         save.addClickListener(event -> {
             try {
@@ -113,7 +113,7 @@ public class EmployeesView extends VerticalLayout {
         payrollTab.setSizeFull();
         payrollTab.setPadding(false);
         payrollTab.addClassNames("compact-tab-body", "app-card");
-        payrollTab.setFlexGrow(1, timesheet);
+        payrollTab.setFlexGrow(0, timesheet);
 
         TabSheet tabs = new TabSheet();
         tabs.add("Сотрудники", employeeTab);

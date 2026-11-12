@@ -22,7 +22,7 @@ public class InventoryService {
         this.products = products; this.inventories = inventories;
         this.audit = audit;
     }
-    public List<Product> products() { return products.findAll(); }
+    public List<Product> products() { return products.findAllByShop(ru.sklad.app.util.SecurityUtils.currentShop()); }
     public List<Inventory> history() { return inventories.findAllByOrderByInventoryDateDescIdDesc(); }
     public static BigDecimal stock(Product product) {
         return product.getStockQuantity() == null ? BigDecimal.ZERO : product.getStockQuantity();
@@ -52,7 +52,7 @@ public class InventoryService {
         inventory.setInventoryDate(date.atTime(LocalTime.now().withNano(0)));
         inventory.setEmployeeName(employee.trim()); inventory.setNotes(notes == null ? "" : notes.trim());
         inventories.saveAndFlush(inventory);
-        audit.logAction("СОЗДАНИЕ", "Инвентаризация", "#" + inventory.getId(), "Проводил: " + employee + "; Фактические остатки (ID → количество): " + actual + "; Учетные: " + expected);
+        audit.safeLogAction("СОЗДАНИЕ", "Инвентаризация", "#" + inventory.getId(), "Проводил: " + employee + "; Фактические остатки (ID → количество): " + actual + "; Учетные: " + expected);
         return updates.size();
     }
 }

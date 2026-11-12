@@ -10,6 +10,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @Service
 public class AiService {
+    public static final String CONNECTION_UNAVAILABLE = "ИИ-помощник временно недоступен (нет связи с локальным сервером Ollama). Попробуйте позже.";
     public static class AiUnavailableException extends RuntimeException {
         public AiUnavailableException() { super("ИИ сейчас недоступен. Проверьте Ollama и установленную модель или повторите позже."); }
     }
@@ -45,6 +46,9 @@ public class AiService {
             if(result==null || (result.error()!=null && !result.error().isBlank()) || result.response()==null || result.response().isBlank())
                 throw new RestClientException("Ollama returned an empty or invalid response");
             return result.response().trim();
+        } catch(ResourceAccessException exception) {
+            errors.report(exception);
+            return CONNECTION_UNAVAILABLE;
         } catch(RestClientException exception) {
             errors.report(exception);
             throw new AiUnavailableException();

@@ -50,7 +50,7 @@ public class DeliveryService {
         Customer customer = new Customer();
         customer.setName(name.trim()); customer.setAddress(address.trim()); customer.setPhone(normalized);
         Customer saved = customers.saveAndFlush(customer);
-        audit.logAction("СОЗДАНИЕ", "Клиент", saved.getName() + " (#" + saved.getId() + ")", "Создан заказчик доставки");
+        audit.safeLogAction("СОЗДАНИЕ", "Клиент", saved.getName() + " (#" + saved.getId() + ")", "Создан заказчик доставки");
         return saved;
     }
     private Delivery lockNew(Long id) {
@@ -77,13 +77,13 @@ public class DeliveryService {
         });
         remaining.forEach((product, stock) -> { product.setStockQuantity(stock); products.save(product); });
         delivery.setStatus("Выполнена"); deliveries.saveAndFlush(delivery);
-        audit.logAction("ИЗМЕНЕНИЕ", "Доставка", "#" + id, "Статус: Новая → Выполнена; товары списаны: " + quantities);
+        audit.safeLogAction("ИЗМЕНЕНИЕ", "Доставка", "#" + id, "Статус: Новая → Выполнена; товары списаны: " + quantities);
     }
     @Transactional
     public void cancel(Long id) {
         Delivery delivery = lockNew(id);
         delivery.setStatus("Отменена"); deliveries.saveAndFlush(delivery);
-        audit.logAction("ИЗМЕНЕНИЕ", "Доставка", "#" + id, "Статус: Новая → Отменена; без списания товаров");
+        audit.safeLogAction("ИЗМЕНЕНИЕ", "Доставка", "#" + id, "Статус: Новая → Отменена; без списания товаров");
     }
     public Delivery get(Long id) {
         return deliveries.findById(id).orElseThrow(() -> new IllegalArgumentException("Заявка больше не существует"));
@@ -118,7 +118,7 @@ public class DeliveryService {
                 Customer created = new Customer();
                 created.setName(name.trim()); created.setAddress(address.trim()); created.setPhone(normalized);
                 Customer saved = customers.save(created);
-                audit.logAction("СОЗДАНИЕ", "Клиент", saved.getName() + " (#" + saved.getId() + ")", "Создан при оформлении доставки");
+                audit.safeLogAction("СОЗДАНИЕ", "Клиент", saved.getName() + " (#" + saved.getId() + ")", "Создан при оформлении доставки");
                 return saved;
             });
         }
@@ -142,9 +142,9 @@ public class DeliveryService {
         delivery.setTotalSum(total.setScale(2, RoundingMode.HALF_UP));
         delivery.getItems().clear(); delivery.getItems().addAll(items);
         Delivery saved = deliveries.saveAndFlush(delivery);
-        audit.logAction(id == null ? "СОЗДАНИЕ" : "ИЗМЕНЕНИЕ", "Доставка", "#" + saved.getId(),
+        audit.safeLogAction(id == null ? "СОЗДАНИЕ" : "ИЗМЕНЕНИЕ", "Доставка", "#" + saved.getId(),
                 "Клиент: " + customer.getName() + "; Дата: " + date + " " + time + "; Товары (ID → количество): " + quantities + "; Сумма: " + saved.getTotalSum());
-        if (id == null) events.publishEvent(new DeliveryCreatedEvent(notification(saved)));
+        if (id == null) events.publishEvent(new DeliveryCreatedEvent(notification(saved), saved.getShop().getId()));
         return saved;
     }
     private String notification(Delivery delivery) {

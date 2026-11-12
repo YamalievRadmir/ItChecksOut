@@ -26,8 +26,9 @@ public class AccountAdminService {
     public synchronized void resetPassword(String username, String newPassword) {
         if (newPassword == null || newPassword.isBlank() || newPassword.getBytes(StandardCharsets.UTF_8).length > 72)
             throw new IllegalArgumentException("Введите новый пароль, не более 72 байт UTF-8");
+        ru.sklad.app.util.PasswordPolicy.validate(newPassword);
         var user = users.loadUserByUsername(username);
         users.updateUser(User.withUserDetails(user).password(encoder.encode(newPassword)).build());
-        audit.logAction("ИЗМЕНЕНИЕ", "Пользователь", username, "Администратор сбросил пароль");
+        audit.safeLogAction("ИЗМЕНЕНИЕ", "Пользователь", username, "Администратор сбросил пароль");
     }
 }

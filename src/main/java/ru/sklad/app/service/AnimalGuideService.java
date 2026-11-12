@@ -40,7 +40,7 @@ public class AnimalGuideService {
         guide.setAnimalType(species.trim()); guide.setAgeGroup(category); guide.setFeedingAdvice(content.trim());
         if (guide.getRecommendedProducts() == null) guide.setRecommendedProducts("");
         AnimalGuide saved = repository.save(guide);
-        audit.logAction(id == null ? "СОЗДАНИЕ" : "ИЗМЕНЕНИЕ", "Статья", saved.getTitle() + " (#" + saved.getId() + ")", species + "; " + category);
+        audit.safeLogAction(id == null ? "СОЗДАНИЕ" : "ИЗМЕНЕНИЕ", "Статья", saved.getTitle() + " (#" + saved.getId() + ")", species + "; " + category);
         return saved;
     }
 
@@ -50,6 +50,6 @@ public class AnimalGuideService {
         AnimalGuide guide = repository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Статья больше не существует"));
         repository.delete(guide);
-        audit.logAction("УДАЛЕНИЕ", "Статья", guide.getTitle() + " (#" + id + ")", "Статья удалена из базы знаний");
+        audit.safeLogAction("УДАЛЕНИЕ", "Статья", guide.getTitle() + " (#" + id + ")", "Статья удалена из базы знаний");
     }
 }

@@ -18,7 +18,7 @@ public class NoteService {
             "(?iu)(?<![\\d.,])(?:\\d{1,3}(?:[ \\u00a0\\u202f]\\d{3})+|\\d+)(?:[.,]\\d{1,2})?\\s*(?:₽|руб(?:лей|ля|ль|\\.)?|р\\.)(?![\\p{L}])");
     public NoteService(NoteRepository repository, AuditService audit) { this.repository = repository; this.audit = audit; }
     public List<Note> list(String type) {
-        return repository.findAll().stream().filter(n -> type == null || type.equals(n.getNoteType()))
+        return repository.findAllByShop(ru.sklad.app.util.SecurityUtils.currentShop()).stream().filter(n -> type == null || type.equals(n.getNoteType()))
                 .sorted(Comparator.comparing(Note::isResolved)
                         .thenComparing(n -> !"ИНСТРУКЦИЯ".equals(n.getNoteType()))
                         .thenComparing(Note::getCreatedAt, Comparator.reverseOrder())
@@ -33,7 +33,7 @@ public class NoteService {
         validate(type, title, content);
         Note note = new Note(); note.setNoteType(type); note.setTitle(title.trim()); note.setContent(content.trim());
         Note saved = repository.saveAndFlush(note);
-        audit.logAction("СОЗДАНИЕ", "Заметка", saved.getTitle() + " (#" + saved.getId() + ")", "Тип: " + type + "; " + saved.getContent());
+        audit.safeLogAction("СОЗДАНИЕ", "Заметка", saved.getTitle() + " (#" + saved.getId() + ")", "Тип: " + type + "; " + saved.getContent());
         return saved;
     }
     private static void validate(String type, String title, String content) {
@@ -53,14 +53,14 @@ public class NoteService {
         String before = note.getNoteType() + "; " + note.getTitle() + "; " + note.getContent();
         note.setNoteType(type); note.setTitle(title.trim()); note.setContent(content.trim());
         Note saved = repository.saveAndFlush(note);
-        audit.logAction("ИЗМЕНЕНИЕ", "Заметка", saved.getTitle() + " (#" + id + ")",
+        audit.safeLogAction("ИЗМЕНЕНИЕ", "Заметка", saved.getTitle() + " (#" + id + ")",
                 "До: " + before + "; После: " + type + "; " + saved.getTitle() + "; " + saved.getContent());
         return saved;
     }
     @Transactional
     public void delete(Long id) {
         Note note = lock(id);
-        audit.logAction("УДАЛЕНИЕ", "Заметка", note.getTitle() + " (#" + id + ")", "Тип: " + note.getNoteType());
+        audit.safeLogAction("УДАЛЕНИЕ", "Заметка", note.getTitle() + " (#" + id + ")", "Тип: " + note.getNoteType());
         repository.delete(note); repository.flush();
     }
     private Note lock(Long id) {
@@ -72,6 +72,6 @@ public class NoteService {
         Note note = lock(id);
         if (!"ДОЛГ".equals(note.getNoteType())) throw new IllegalArgumentException("Закрывать можно только долги");
         note.setResolved(true); repository.save(note);
-        audit.logAction("ИЗМЕНЕНИЕ", "Заметка", note.getTitle() + " (#" + id + ")", "Долг закрыт");
+        audit.safeLogAction("ИЗМЕНЕНИЕ", "Заметка", note.getTitle() + " (#" + id + ")", "Долг закрыт");
     }
 }

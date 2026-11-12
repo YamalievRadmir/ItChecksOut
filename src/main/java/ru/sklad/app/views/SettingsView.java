@@ -28,7 +28,7 @@ public class SettingsView extends VerticalLayout {
                         ru.sklad.app.service.AuditService audit, ru.sklad.app.service.BackupService backups,
                         ru.sklad.app.service.SiteParserService parser,
                         @org.springframework.beans.factory.annotation.Qualifier("aiExecutor") org.springframework.core.task.AsyncTaskExecutor executor,
-                        ru.sklad.app.config.GlobalExceptionHandler exceptionHandler) {
+                        ru.sklad.app.config.GlobalExceptionHandler exceptionHandler, ru.sklad.app.service.ShopSellerService sellers) {
         setSizeFull();
         getStyle().set("overflow", "auto");
         add(new H2("Настройки"));
@@ -67,11 +67,12 @@ public class SettingsView extends VerticalLayout {
         change.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         Button logout = new Button("Выйти из аккаунта", event -> authenticationContext.logout());
         VerticalLayout profile = new VerticalLayout(form, change, logout,
-                new Paragraph("Пользователи хранятся в памяти: после перезапуска приложения пароли возвращаются к исходным."));
+                new Paragraph("Учётные записи и пароли сохраняются в базе данных."));
         profile.addClassName("app-card");
         TabSheet tabs = new TabSheet();
         tabs.add("Профиль и Пароли", profile);
         if (RoleAccess.isAdmin()) {
+            tabs.add("Пользователи магазина", new ShopUsersPanel(sellers));
             tabs.add("База знаний", new KnowledgeImportPanel(parser, executor, exceptionHandler));
             VerticalLayout access = new VerticalLayout(new H2("Разрешенные разделы для SELLER"));
             var selected = permissions.allowed("SELLER");

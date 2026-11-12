@@ -15,6 +15,7 @@ import java.util.Map;
 
 @Service
 public class TelegramService {
+    @org.springframework.beans.factory.annotation.Value("${app.telegram.shop-id:0}") private long notificationShopId;
     private static final Logger log = LoggerFactory.getLogger(TelegramService.class);
     private final String token;
     private final String chatId;
@@ -40,7 +41,7 @@ public class TelegramService {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onDeliveryCreated(DeliveryCreatedEvent event) {
-        sendMessage(event.message());
+        if (event.shopId() != null && event.shopId() == notificationShopId) sendMessage(event.message());
     }
 
     public void sendMessage(String text) {

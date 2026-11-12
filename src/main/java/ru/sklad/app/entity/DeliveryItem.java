@@ -8,7 +8,7 @@ import java.math.BigDecimal;
 @Entity
 @Getter
 @Setter
-public class DeliveryItem {
+public class DeliveryItem extends ShopOwned {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

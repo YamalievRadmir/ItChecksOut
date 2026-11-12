@@ -128,7 +128,7 @@ public class SiteParserService {
             guide.setAnimalType(guide.getSpecies()); guide.setAgeGroup(guide.getCategory());
             guide.setFeedingAdvice(article.content()); guide.setRecommendedProducts(""); guides.save(guide); count++;
         }
-        guides.flush(); audit.logAction("СОЗДАНИЕ","База знаний",SITE,"Импортировано статей: "+count);
+        guides.flush(); audit.safeLogAction("СОЗДАНИЕ","База знаний",SITE,"Импортировано статей: "+count);
         return count;
     }
 }

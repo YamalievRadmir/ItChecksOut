@@ -76,7 +76,7 @@ public class ProductService {
             product.getRecommendedAdditives().clear();
             for (Long id : nextAdditives) product.getRecommendedAdditives().add(products.findById(id).orElseThrow());
             if (!beforeAlternatives.equals(nextAlternatives) || !beforeAdditives.equals(nextAdditives))
-                audit.logAction("ИЗМЕНЕНИЕ", "Товар", product.getName(), "Альтернативы: " + beforeAlternatives + " → " + nextAlternatives
+                audit.safeLogAction("ИЗМЕНЕНИЕ", "Товар", product.getName(), "Альтернативы: " + beforeAlternatives + " → " + nextAlternatives
                         + "; Добавки: " + beforeAdditives + " → " + nextAdditives);
         }
         Map<String, Object> after = values(product);
@@ -84,7 +84,7 @@ public class ProductService {
                 .map(e -> e.getKey() + ": " + Objects.toString(before.get(e.getKey()), "—") + " → " + Objects.toString(e.getValue(), "—"))
                 .collect(java.util.stream.Collectors.joining("; "));
         Product saved = products.saveAndFlush(product);
-        if (create || !details.isEmpty()) audit.logAction(create ? "СОЗДАНИЕ" : "ИЗМЕНЕНИЕ", "Товар", saved.getName() + " (#" + saved.getId() + ")", details);
+        if (create || !details.isEmpty()) audit.safeLogAction(create ? "СОЗДАНИЕ" : "ИЗМЕНЕНИЕ", "Товар", saved.getName() + " (#" + saved.getId() + ")", details);
         return saved;
     }
     private boolean same(Object a, Object b) {
@@ -99,7 +99,7 @@ public class ProductService {
             other.getRecommendedAdditives().removeIf(p -> Objects.equals(p.getId(), id));
         }
         Product product = products.findLockedById(id).orElseThrow(() -> new IllegalArgumentException("Товар больше не существует"));
-        audit.logAction("УДАЛЕНИЕ", "Товар", product.getName() + " (#" + id + ")", "Удаление карточки товара");
+        audit.safeLogAction("УДАЛЕНИЕ", "Товар", product.getName() + " (#" + id + ")", "Удаление карточки товара");
         products.delete(product); products.flush();
     }
 }

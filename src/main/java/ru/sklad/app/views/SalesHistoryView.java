@@ -33,7 +33,7 @@ import java.text.NumberFormat;
 @PageTitle("История продаж — Всё сходится!")
 @jakarta.annotation.security.PermitAll
 public class SalesHistoryView extends VerticalLayout {
-    private final Grid<Sale> grid = new Grid<>(Sale.class, false);
+    private final Grid<Sale> grid = ru.sklad.app.util.GridColumns.compact(new Grid<>(Sale.class, false));
     private final DatePicker from = new DatePicker("С");
     private final DatePicker to = new DatePicker("По");
     private final TextField search = new TextField();
@@ -98,8 +98,8 @@ public class SalesHistoryView extends VerticalLayout {
                 com.vaadin.flow.component.notification.Notification.show(exception.getMessage());
             }
         });
-        grid.setSizeFull();
-        grid.setMinHeight("160px");
+        grid.setWidthFull(); grid.setHeight("50px");
+        grid.setMinHeight("0");
         revenueTotal.addClassName("metric-value"); profitTotal.addClassName("metric-value");
         Span revenueLabel = new Span("Итого выручка:"); revenueLabel.addClassName("metric-label");
         Span profitLabel = new Span("Итого прибыль (без закупа):"); profitLabel.addClassName("metric-label");
@@ -115,7 +115,9 @@ public class SalesHistoryView extends VerticalLayout {
         totals.setPadding(false); totals.setSpacing(false); totals.addClassName("history-totals");
         var tableCard = ru.sklad.app.util.AppCards.table(grid);
         add(toolbar, status, tableCard, totals);
-        setFlexGrow(1, tableCard);
+        tableCard.setHeight("auto");
+        tableCard.getStyle().set("flex", "0 0 auto");
+        setFlexGrow(0, tableCard);
         refresh();
     }
 
@@ -137,6 +139,7 @@ public class SalesHistoryView extends VerticalLayout {
             history = List.of();
             receiptNumbers.clear();
             grid.setItems(history);
+            GridColumns.updateGridHeight(grid);
             revenueTotal.setText("—"); profitTotal.setText("—"); profitCard.setVisible(false);
             status.setText("Укажите корректный период: дата «С» должна быть не позже даты «По»");
             return;
@@ -164,6 +167,7 @@ public class SalesHistoryView extends VerticalLayout {
                 || sale.getItems().stream().anyMatch(item -> Objects.toString(item.getProductName(), "")
                 .toLowerCase(Locale.ROOT).contains(term))).toList();
         grid.setItems(items);
+        GridColumns.updateGridHeight(grid);
         status.setText(items.isEmpty() ? "Продажи не найдены" : "Продаж: " + items.size());
     }
 

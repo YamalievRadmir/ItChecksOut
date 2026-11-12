@@ -13,7 +13,8 @@ import java.time.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 @DataJpaTest(showSql = false)
-@Import(DeliveryService.class)
+@org.junit.jupiter.api.extension.ExtendWith(ru.sklad.app.TestShopContext.class)
+@Import({ru.sklad.app.util.SecurityUtils.class, DeliveryService.class})
 class DeliveryBadgeTest {
     @Autowired DeliveryRepository deliveries;
     @Autowired CustomerRepository customers;

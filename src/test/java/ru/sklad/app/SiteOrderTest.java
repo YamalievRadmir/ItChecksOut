@@ -13,7 +13,8 @@ import java.time.LocalDate;
 import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
-@DataJpaTest(showSql=false) @Import(SiteOrderService.class)
+@DataJpaTest(showSql=false)
+@org.junit.jupiter.api.extension.ExtendWith(ru.sklad.app.TestShopContext.class) @Import({ru.sklad.app.util.SecurityUtils.class, SiteOrderService.class})
 class SiteOrderTest {
     @Autowired SiteOrderService service;
     @Autowired CustomerRepository customers;

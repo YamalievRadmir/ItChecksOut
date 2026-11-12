@@ -6,7 +6,7 @@ import ru.sklad.app.service.ProductRecommendationsInitializer;
 @Configuration
 public class ProductRecommendationsConfiguration {
     @Bean @Order(org.springframework.core.Ordered.LOWEST_PRECEDENCE)
-    ApplicationRunner initializeProductRecommendations(ProductRecommendationsInitializer initializer) {
-        return args -> initializer.initializeIfEmpty();
+    ApplicationRunner initializeProductRecommendations(ProductRecommendationsInitializer initializer, ru.sklad.app.repository.ShopRepository shops) {
+        return args -> { for (var shop : shops.findAll()) ru.sklad.app.util.SecurityUtils.inShop(shop, () -> { initializer.initializeIfEmpty(); return null; }); };
     }
 }

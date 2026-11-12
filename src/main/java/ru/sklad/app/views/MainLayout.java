@@ -53,6 +53,9 @@ public class MainLayout extends AppLayout {
         Button account = new Button(VaadinIcon.USER.create());
         account.setAriaLabel("Меню пользователя");
         var current = SecurityContextHolder.getContext().getAuthentication();
+        boolean superAdmin = current != null && current.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_SUPER_ADMIN".equals(authority.getAuthority()));
+        toggle.setVisible(!superAdmin);
         account.setTooltipText(current == null ? "Аккаунт" : current.getName());
         ContextMenu accountMenu = new ContextMenu(account);
         accountMenu.setOpenOnClick(true);
@@ -89,15 +92,17 @@ public class MainLayout extends AppLayout {
         header.setFlexGrow(1, title);
         header.addClassName("app-header");
         addToNavbar(header);
+        if (superAdmin) {
+            setPrimarySection(Section.NAVBAR);
+            setDrawerOpened(false);
+            return;
+        }
         AiChatDialog chat = new AiChatDialog(ai, aiExecutor, errors);
         Button chatButton = new Button(VaadinIcon.CHAT.create(), event -> chat.open());
         chatButton.setAriaLabel("Открыть чат с консультантом");
         chatButton.setTooltipText("Консультант по кормам");
-        chatButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_PRIMARY);
-        chatButton.getStyle().set("position", "fixed").set("bottom", "80px").set("right", "20px")
-                .set("z-index", "100").set("border-radius", "50%").set("width", "48px").set("height", "48px");
-        addToNavbar(chatButton);
-
+        chatButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_TERTIARY_INLINE);
+        header.addComponentAtIndex(header.indexOf(theme), chatButton);
         SideNav navigation = new SideNav();
         navigation.setWidthFull();
         navigation.getElement().setAttribute("aria-label", "Основное меню");

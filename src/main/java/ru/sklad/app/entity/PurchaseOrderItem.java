@@ -9,7 +9,7 @@ import java.math.BigDecimal;
 @Getter
 @Setter
 @Table(uniqueConstraints = @UniqueConstraint(columnNames = {"order_id", "product_id"}))
-public class PurchaseOrderItem {
+public class PurchaseOrderItem extends ShopOwned {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

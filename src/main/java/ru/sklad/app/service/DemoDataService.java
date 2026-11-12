@@ -46,7 +46,7 @@ public class DemoDataService {
         var catalog = importer.read(priceFile);
         List<DeliveryCopy> preserved = new ArrayList<>();
         if (resetRequested) {
-            for (Delivery delivery : deliveries.findAll()) {
+            for (Delivery delivery : deliveries.findAllByShop(ru.sklad.app.util.SecurityUtils.currentShop())) {
                 List<DeliveryLine> lines = delivery.getItems().stream().map(item -> new DeliveryLine(
                         match(item.getProduct().getName(), catalog.products()), item.getQuantity())).toList();
                 preserved.add(new DeliveryCopy(delivery, lines));
@@ -68,14 +68,14 @@ public class DemoDataService {
             deliveries.save(copy.delivery());
         }
         deliveries.flush();
-        if (!orders.existsById(1L)) orders.saveAndFlush(new PurchaseOrder());
+        if (!orders.existsById(PurchaseOrder.currentDraftId())) orders.saveAndFlush(new PurchaseOrder());
         DemoHistoryGenerator.Result result = generateHistory && sales.count() == 0
                 ? generator.generate(catalog.products(), LocalDateTime.now(), new Random(20261109L))
                 : new DemoHistoryGenerator.Result(0, 0, 0, 0);
         DemoDataRun run = new DemoDataRun(); run.setId(RUN_ID); run.setCompletedAt(LocalDateTime.now());
         run.setSourceSha256(catalog.sha256()); run.setProducts(catalog.products().size()); run.setSales(result.sales());
         run.setSupplies(result.supplies()); run.setEmployees(result.employees()); run.setShifts(result.shifts()); runs.saveAndFlush(run);
-        audit.logAction("СОЗДАНИЕ", "Тестовые данные", RUN_ID, "Прайс SHA-256: " + catalog.sha256()
+        audit.safeLogAction("СОЗДАНИЕ", "Тестовые данные", RUN_ID, "Прайс SHA-256: " + catalog.sha256()
                 + "; Товаров: " + run.getProducts() + "; Продаж: " + result.sales() + "; Поставок: " + result.supplies()
                 + "; Тестовых сотрудников: " + result.employees() + "; Смен: " + result.shifts()
                 + "; Сохранено доставок: " + preserved.size());

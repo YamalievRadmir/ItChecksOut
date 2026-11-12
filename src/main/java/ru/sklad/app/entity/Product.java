@@ -14,18 +14,21 @@ import lombok.Setter;
 import java.math.BigDecimal;
 
 @Entity
-@Table(name = "products")
+@org.hibernate.annotations.BatchSize(size = 64)
+@Table(name = "products", uniqueConstraints = @jakarta.persistence.UniqueConstraint(columnNames = {"shop_id", "barcode"}))
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class Product {
+public class Product extends ShopOwned {
+    @org.hibernate.annotations.BatchSize(size = 64)
     @jakarta.persistence.ManyToMany
     @jakarta.persistence.JoinTable(name = "product_alternatives",
             joinColumns = @jakarta.persistence.JoinColumn(name = "product_id"),
             inverseJoinColumns = @jakarta.persistence.JoinColumn(name = "alternative_id"))
     private java.util.Set<Product> alternativeProducts = new java.util.LinkedHashSet<>();
 
+    @org.hibernate.annotations.BatchSize(size = 64)
     @jakarta.persistence.ManyToMany
     @jakarta.persistence.JoinTable(name = "product_additives",
             joinColumns = @jakarta.persistence.JoinColumn(name = "product_id"),
@@ -43,7 +46,7 @@ public class Product {
     @Column(nullable = false)
     private String name;
 
-    @Column(unique = true)
+    @Column(unique = false)
     private String barcode;
 
     private String category;

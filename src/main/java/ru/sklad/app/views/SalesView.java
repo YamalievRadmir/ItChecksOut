@@ -46,13 +46,13 @@ import java.util.Objects;
 
 @Route(value = "sales", layout = MainLayout.class)
 @PageTitle("Продажи — Всё сходится!")
-@PermitAll
+@jakarta.annotation.security.RolesAllowed({"ADMIN", "SELLER"})
 public class SalesView extends VerticalLayout {
     private final ProductRepository repository;
     private final SessionCart sessionCart;
     private final Map<Long, CartItem> cart;
     private final ComboBox<Product> matches = new ComboBox<>();
-    private final Grid<CartItem> grid = new Grid<>();
+    private final Grid<CartItem> grid = ru.sklad.app.util.GridColumns.compact(new Grid<>());
     private final Span total = new Span();
     private final Span mobileTotal = new Span();
     private final Span subtotalText = new Span();
@@ -149,7 +149,7 @@ public class SalesView extends VerticalLayout {
         lookup.setAlignItems(Alignment.STRETCH);
         grid.addColumn(line -> Objects.toString(line.product.getName(), "")).setHeader("Товар").setKey("product").setFlexGrow(2);
         grid.addComponentColumn(line -> {
-            NumberField quantity = new NumberField();
+            NumberField quantity = new NumberField(); quantity.addThemeVariants(com.vaadin.flow.component.textfield.TextFieldVariant.LUMO_SMALL);
             quantity.setAriaLabel("Количество: " + line.product.getName());
             quantity.setMin(0.01);
             quantity.setMax(99999999.99);
@@ -195,7 +195,7 @@ public class SalesView extends VerticalLayout {
         grid.getColumnByKey("sum").setAutoWidth(false).setWidth("90px").setFlexGrow(0);
         grid.getColumnByKey("additives").setAutoWidth(false).setWidth("90px").setFlexGrow(0);
         grid.getColumnByKey("actions").setAutoWidth(false).setWidth("95px").setFlexGrow(0);
-        grid.setSizeFull();
+        grid.setWidthFull(); grid.setHeight("50px");
         grid.addClassName("sales-grid");
 
         HorizontalLayout receipt = WordExporter.downloadButton("Распечатать чек (Word)", "receipt.docx",
@@ -228,11 +228,8 @@ public class SalesView extends VerticalLayout {
                 receipt.setVisible(true);
                 printReceipt.setVisible(true);
 
-                cart.clear();
-                applyDiscount.setValue(false);
-                discountValue.setValue(0.0);
-                paymentMethod.setValue("Наличные");
-                refreshCart();
+                clearCurrentCart();
+
                 matches.getDataProvider().refreshAll();
                 Notification.show("Продажа проведена успешно");
 
@@ -261,6 +258,7 @@ public class SalesView extends VerticalLayout {
             try {
                 heldCartService.hold(quantities, discountValue.getValue() == null ? BigDecimal.ZERO : BigDecimal.valueOf(discountValue.getValue()),
                         discountType.getValue(), paymentMethod.getValue());
+                clearCurrentCart();
                 updateHeldCount(); Notification.show("Копия чека отложена");
             } catch (IllegalArgumentException exception) { Notification.show(exception.getMessage()); }
         });
@@ -270,12 +268,8 @@ public class SalesView extends VerticalLayout {
         mobileTotal.addClassName("sales-mobile-total");
         Div payDock = new Div(mobileTotal, conductSale);
         payDock.addClassName("sales-pay-dock");
-        Button clear = new Button("Очистить", event -> {
-            cart.clear(); applyDiscount.setValue(false); discountValue.setValue(0.0);
-            discountType.setValue("%"); paymentMethod.setValue("Наличные");
-            if (alternativeDialog != null) alternativeDialog.close();
-            closeProductSearch(); refreshCart();
-        });
+        Button clear = new Button("Очистить", event -> clearCurrentCart());
+
         Div checkout = new Div(payDock, hold, heldCartsButton, clear, printReceipt, receipt);
         checkout.addClassName("sales-checkout");
         Div amounts = new Div(subtotalText, discountText, total);
@@ -293,7 +287,7 @@ public class SalesView extends VerticalLayout {
         basket.setSizeFull();
         basket.setPadding(false);
         basket.setAlignItems(Alignment.STRETCH);
-        basket.setFlexGrow(1, grid);
+        basket.setFlexGrow(0, grid);
         HorizontalLayout content = new HorizontalLayout(lookup, basket);
         content.addClassName("sales-content");
         content.setSizeFull();
@@ -393,7 +387,7 @@ public class SalesView extends VerticalLayout {
         updateHeldCount();
         Dialog dialog = new Dialog(); dialog.setHeaderTitle("Отложенные чеки");
         dialog.setWidth("800px"); dialog.setMaxWidth("95vw");
-        Grid<HeldCart> held = new Grid<>(HeldCart.class, false);
+        Grid<HeldCart> held = ru.sklad.app.util.GridColumns.compact(new Grid<>(HeldCart.class, false));
         held.addColumn(c -> c.getCreatedAt().format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")))
                 .setHeader("Время создания").setKey("createdAt");
         held.addColumn(c -> c.getTotalSum().setScale(2, RoundingMode.HALF_UP) + " ₽").setHeader("Сумма").setKey("sum");
@@ -430,7 +424,7 @@ public class SalesView extends VerticalLayout {
         TextField search = new TextField(); search.setAriaLabel("Поиск по названию товара");
         search.setPlaceholder("Поиск по названию товара..."); search.setPrefixComponent(VaadinIcon.SEARCH.create());
         search.setClearButtonVisible(true); search.setWidthFull(); search.setValueChangeMode(ValueChangeMode.LAZY);
-        Grid<Product> catalog = new Grid<>(Product.class, false); catalog.setId("sales-product-catalog");
+        Grid<Product> catalog = ru.sklad.app.util.GridColumns.compact(new Grid<>(Product.class, false)); catalog.setId("sales-product-catalog");
         catalog.addColumn(Product::getName).setHeader("Наименование").setKey("name");
         catalog.addColumn(Product::getCategory).setHeader("Категория").setKey("category");
         catalog.addColumn(p -> (p.getStockQuantity() == null ? BigDecimal.ZERO : p.getStockQuantity())
@@ -495,13 +489,13 @@ public class SalesView extends VerticalLayout {
         catalog.getColumnByKey("stock").setAutoWidth(true).setFlexGrow(0);
         catalog.getColumnByKey("price").setAutoWidth(true).setFlexGrow(0);
         catalog.getColumnByKey("add").setAutoWidth(true).setFlexGrow(0);
-        catalog.setSizeFull();
+        catalog.setWidthFull(); catalog.setHeight("65vh");
         Runnable refresh = () -> catalog.setItems(repository.findByNameContainingIgnoreCase(search.getValue().trim()).stream()
                 .sorted(java.util.Comparator.comparing(Product::getName, String.CASE_INSENSITIVE_ORDER).thenComparing(Product::getId)).toList());
         search.addValueChangeListener(event -> refresh.run());
         VerticalLayout content = new VerticalLayout(search, catalog, added);
         content.setPadding(false); content.setSizeFull(); content.addClassName("sales-catalog-content");
-        content.setFlexGrow(1, catalog); dialog.add(content);
+        content.setFlexGrow(0, catalog); dialog.add(content);
         Button done = new Button("Готово", VaadinIcon.CHECK.create(), event -> dialog.close());
         done.setId("sales-catalog-done"); done.addClassName("sales-catalog-done");
         done.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_LARGE); done.setWidthFull();
@@ -584,12 +578,25 @@ public class SalesView extends VerticalLayout {
         return true;
     }
 
+    private void clearCurrentCart() {
+        cart.clear(); // This is the same map held by SessionCart.
+        applyDiscount.setValue(false);
+        discountValue.setValue(0.0);
+        discountValue.setInvalid(false);
+        discountType.setValue("%");
+        paymentMethod.setValue("Наличные");
+        if (alternativeDialog != null) alternativeDialog.close();
+        closeProductSearch();
+        refreshCart();
+    }
+
     private void refreshCart() {
         grid.setItems(new ArrayList<>(cart.values()));
         updateTotal();
     }
 
     private void updateTotal() {
+        GridColumns.updateGridHeight(grid);
         sessionCart.settings(discountValue.getValue() == null ? 0 : discountValue.getValue(),
                 discountType.getValue(), applyDiscount.getValue(), paymentMethod.getValue());
         BigDecimal sum = cart.values().stream().map(CartItem::sum).reduce(BigDecimal.ZERO, BigDecimal::add);

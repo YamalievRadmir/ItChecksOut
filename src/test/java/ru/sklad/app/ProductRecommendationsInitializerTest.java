@@ -11,7 +11,8 @@ import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.util.Set;
 import static org.junit.jupiter.api.Assertions.*;
-@DataJpaTest(showSql=false) @Import(ProductRecommendationsInitializer.class)
+@DataJpaTest(showSql=false)
+@org.junit.jupiter.api.extension.ExtendWith(ru.sklad.app.TestShopContext.class) @Import({ru.sklad.app.util.SecurityUtils.class, ProductRecommendationsInitializer.class})
 class ProductRecommendationsInitializerTest {
     @Autowired ProductRecommendationsInitializer initializer;
     @Autowired ProductRepository products;

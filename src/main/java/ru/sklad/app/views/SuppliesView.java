@@ -27,7 +27,7 @@ import java.util.*;
 
 @Route(value = "supplies", layout = MainLayout.class)
 @PageTitle("Поставки — Всё сходится!")
-@PermitAll
+@jakarta.annotation.security.RolesAllowed({"ADMIN", "SELLER"})
 public class SuppliesView extends VerticalLayout implements BeforeEnterObserver {
     private static final BigDecimal MAX = new BigDecimal("99999999.99");
     private final ProductRepository products;
@@ -35,12 +35,12 @@ public class SuppliesView extends VerticalLayout implements BeforeEnterObserver 
     private final BatchSupplyService service;
     private final PermissionService permissions;
     private final SupplierService supplierService;
-    private final Grid<Supplier> supplierGrid = new Grid<>(Supplier.class, false);
+    private final Grid<Supplier> supplierGrid = ru.sklad.app.util.GridColumns.compact(new Grid<>(Supplier.class, false));
     private final TabSheet tabs = new TabSheet();
     private final Map<Long, CartLine> cart = new LinkedHashMap<>();
     private final Map<Long, Span> lineSums = new HashMap<>();
-    private final Grid<CartLine> grid = new Grid<>();
-    private final Grid<Supply> history = new Grid<>(Supply.class, false);
+    private final Grid<CartLine> grid = ru.sklad.app.util.GridColumns.compact(new Grid<>());
+    private final Grid<Supply> history = ru.sklad.app.util.GridColumns.compact(new Grid<>(Supply.class, false));
     private final ComboBox<Product> product = new ComboBox<>("Товар");
     private final NumberField quantity = new NumberField("Количество");
     private final NumberField purchasePrice = new NumberField("Цена закупа");
@@ -59,7 +59,7 @@ public class SuppliesView extends VerticalLayout implements BeforeEnterObserver 
                         PermissionService permissions, BatchSupplyService service, SupplierService supplierService) {
         this.products = products; this.supplies = supplies; this.permissions = permissions; this.service = service;
         this.supplierService = supplierService;
-        setSizeFull(); addClassNames("supplies-view", "compact-page"); getStyle().set("overflow", "auto");
+        setSizeFull(); addClassNames("supplies-view", "compact-page", "workspace-table-page"); getStyle().set("overflow", "auto");
         boolean canReceive = permissions.hasPermission("canMakeSupply");
         boolean canSeePrice = permissions.hasPermission("canSeePurchasePrice");
         product.setItemLabelGenerator(p -> Objects.toString(p.getName(), ""));
@@ -98,7 +98,7 @@ public class SuppliesView extends VerticalLayout implements BeforeEnterObserver 
         grid.setId("supply-cart");
         grid.addColumn(line -> line.name).setHeader("Товар");
         grid.addComponentColumn(line -> {
-            NumberField field = new NumberField(); configureQuantity(field); field.setWidthFull();
+            NumberField field = new NumberField(); field.addThemeVariants(com.vaadin.flow.component.textfield.TextFieldVariant.LUMO_SMALL); configureQuantity(field); field.setWidth("120px");
             field.setAriaLabel("Количество: " + line.name); field.setValue(line.quantity.doubleValue()); field.setInvalid(!line.valid);
             field.setReadOnly(!canReceive); field.setValueChangeMode(ValueChangeMode.ON_BLUR);
             field.addValueChangeListener(event -> {
@@ -108,7 +108,7 @@ public class SuppliesView extends VerticalLayout implements BeforeEnterObserver 
                 updateTotal();
             });
             return field;
-        }).setHeader("Количество").setWidth("190px");
+        }).setHeader("Количество").setAutoWidth(true).setFlexGrow(0);
         if (canSeePrice) {
             grid.addColumn(line -> money(line.purchasePrice)).setHeader("Цена закупа");
             grid.addComponentColumn(line -> {
@@ -118,7 +118,7 @@ public class SuppliesView extends VerticalLayout implements BeforeEnterObserver 
         if (canReceive) grid.addComponentColumn(line -> new Button("Удалить", event -> {
             cart.remove(line.productId); refreshCart();
         })).setHeader("Действие");
-        GridColumns.configure(grid, "Товар"); grid.setSizeFull(); grid.setMinHeight("240px");
+        GridColumns.configure(grid, "Товар"); grid.setWidthFull(); grid.setHeight("50px"); grid.setMinHeight("0");
         receive.setVisible(canReceive); receive.addThemeVariants(ButtonVariant.LUMO_PRIMARY); receive.setDisableOnClick(true);
         receive.addClickListener(event -> receiveParty());
         total.setVisible(canSeePrice); total.getStyle().set("font-weight", "700");
@@ -129,18 +129,18 @@ public class SuppliesView extends VerticalLayout implements BeforeEnterObserver 
         VerticalLayout receiptTab = new VerticalLayout(new H4("Форма добавления в приемку"), addForm,
                 new H3("Текущая приемка (Корзина)"), sourceInfo, partyFields, grid, actions, historyPanel);
         receiptTab.setPadding(false); receiptTab.setSizeFull(); receiptTab.addClassNames("compact-tab-body", "app-card");
-        receiptTab.getStyle().set("overflow", "auto"); receiptTab.setFlexGrow(1, grid);
+        receiptTab.getStyle().set("overflow", "visible"); receiptTab.setFlexGrow(0, grid);
         supplierGrid.setId("supplier-directory");
         supplierGrid.addColumn(Supplier::getName).setHeader("Название").setKey("name");
         supplierGrid.addColumn(Supplier::getPhone).setHeader("Телефон").setKey("phone");
         supplierGrid.addColumn(Supplier::getAddress).setHeader("Адрес").setKey("address");
-        GridColumns.configure(supplierGrid, "Название", "Адрес"); supplierGrid.setSizeFull();
+        GridColumns.configure(supplierGrid, "Название", "Адрес"); supplierGrid.setWidthFull(); supplierGrid.setHeight("65vh"); supplierGrid.setMinHeight("0");
         supplierGrid.addItemDoubleClickListener(event -> openSupplierDialog(event.getItem()));
         Button addSupplier = new Button("Добавить поставщика", event -> openSupplierDialog(null));
         addSupplier.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         VerticalLayout supplierTab = new VerticalLayout(addSupplier, supplierGrid);
         supplierTab.setPadding(false); supplierTab.setSizeFull(); supplierTab.addClassNames("compact-tab-body", "app-card");
-        supplierTab.setFlexGrow(1, supplierGrid);
+        supplierTab.setFlexGrow(0, supplierGrid);
         var receipt = tabs.add("Приемка", receiptTab); tabs.add("Поставщики", supplierTab);
         tabs.setSizeFull(); tabs.addClassName("compact-tabs");
         tabs.addSelectedChangeListener(event -> {
@@ -159,10 +159,13 @@ public class SuppliesView extends VerticalLayout implements BeforeEnterObserver 
             // Import once; repeated navigation must not discard edits to the current receipt.
             Map<Long, CartLine> imported = new LinkedHashMap<>();
             for (var line : pending.lines()) {
-                Product current = products.findById(line.productId()).orElseThrow(() -> new IllegalArgumentException("Товар больше не существует: " + line.name()));
+                Product current = products.findById(line.productId()).orElse(null); // Shop-scoped lookup.
+                if (current == null) { Notification.show("Товар удален или недоступен в текущем магазине. Позиция пропущена."); continue; }
                 imported.put(current.getId(), new CartLine(current, line.quantity()));
             }
-            cart.clear(); cart.putAll(imported); origin = pending; receiptId = UUID.randomUUID();
+            cart.clear(); cart.putAll(imported); origin = imported.size() == pending.lines().size() ? pending : null;
+            if (origin == null) PendingSupplySession.clear(session);
+            if (cart.isEmpty()) Notification.show("Корзина приемки пуста. Добавьте товары для оприходования."); receiptId = UUID.randomUUID();
             tabs.setSelectedIndex(0);
             sourceInfo.setText("Из заявки на закупку"); sourceInfo.setVisible(true); refreshCart();
         }
@@ -195,7 +198,8 @@ public class SuppliesView extends VerticalLayout implements BeforeEnterObserver 
         if (receiving) return;
         receiving = true;
         try {
-            if (cart.isEmpty() || cart.values().stream().anyMatch(line -> !line.valid)) {
+            if (cart.isEmpty()) { Notification.show("Добавьте товары в приемку перед оприходованием"); return; }
+            if (cart.values().stream().anyMatch(line -> !line.valid)) {
                 Notification.show("Добавьте товары и проверьте количество во всех строках"); return;
             }
             if (date.isInvalid() || date.getValue() == null || invoice.isInvalid() || supplier.isInvalid()) {
@@ -224,7 +228,7 @@ public class SuppliesView extends VerticalLayout implements BeforeEnterObserver 
         }
         history.addColumn(Supply::getInvoiceNumber).setHeader("Накладная");
         history.addColumn(Supply::getSupplier).setHeader("Поставщик");
-        GridColumns.configure(history, "Товар", "Поставщик"); history.setWidthFull(); history.setHeight("320px");
+        GridColumns.configure(history, "Товар", "Поставщик"); history.setWidthFull(); history.setHeight("65vh"); history.setMinHeight("0");
     }
     private void refreshHistory() {
         history.setItems(supplies.findAllByOrderBySupplyDateDescIdDesc());
@@ -283,6 +287,7 @@ public class SuppliesView extends VerticalLayout implements BeforeEnterObserver 
     }
     private void refreshCart() { lineSums.clear(); grid.setItems(new ArrayList<>(cart.values())); updateTotal(); }
     private void updateTotal() {
+        GridColumns.updateGridHeight(grid);
         boolean valid = cart.values().stream().allMatch(line -> line.valid);
         total.setText(valid ? "Итого: " + money(cart.values().stream().map(CartLine::sum).reduce(BigDecimal.ZERO, BigDecimal::add))
                 : "Проверьте количество товаров");

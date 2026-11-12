@@ -146,7 +146,7 @@ public class SalesService {
             repository.save(product);
         }
         Sale saved = sales.save(sale);
-        audit.logAction("СОЗДАНИЕ", "Продажа", "#" + saved.getId(), "Товары (ID → количество): " + cart + "; Итог: " + saved.getFinalSum() + "; Оплата: " + paymentMethod);
+        audit.safeLogAction("СОЗДАНИЕ", "Продажа", "#" + saved.getId(), "Товары (ID → количество): " + cart + "; Итог: " + saved.getFinalSum() + "; Оплата: " + paymentMethod);
         return saved;
     }
 }

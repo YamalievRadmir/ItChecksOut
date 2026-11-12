@@ -7,6 +7,6 @@ public final class AppCards {
     public static VerticalLayout table(Component table) {
         VerticalLayout card=new VerticalLayout(table);
         card.addClassNames("app-card","app-table-card"); card.setPadding(false); card.setSizeFull();
-        card.setFlexGrow(1,table); return card;
+        card.setFlexGrow(0,table); return card;
     }
 }

@@ -29,12 +29,13 @@ public class ProfileService {
         if (newPassword.getBytes(StandardCharsets.UTF_8).length > 72) {
             throw new IllegalArgumentException("Новый пароль слишком длинный: максимум 72 байта UTF-8");
         }
+        ru.sklad.app.util.PasswordPolicy.validate(newPassword);
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
         var user = users.loadUserByUsername(username);
         if (!encoder.matches(oldPassword, user.getPassword())) {
             throw new BadCredentialsException("Старый пароль указан неверно");
         }
         users.changePassword(oldPassword, encoder.encode(newPassword));
-        audit.logAction("ИЗМЕНЕНИЕ", "Пользователь", username, "Пользователь изменил свой пароль");
+        audit.safeLogAction("ИЗМЕНЕНИЕ", "Пользователь", username, "Пользователь изменил свой пароль");
     }
 }
