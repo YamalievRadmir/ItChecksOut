@@ -74,6 +74,10 @@ public class SuperAdminView extends VerticalLayout {
         Tab usersTab = tabs.add("Пользователи", userTab);
         Tab logsTab = tabs.add("Системные логи", logsContent);
         tabs.setSelectedTab(shopsTab);
+        addAttachListener(event -> {
+            var query = event.getUI().getInternals().getActiveViewLocation().getQueryParameters();
+            if (query.getParameters().getOrDefault("tab", java.util.List.of()).contains("logs")) tabs.setSelectedTab(logsTab);
+        });
         shopGrid.setWidthFull(); shopGrid.setHeight("65vh"); userGrid.setWidthFull(); userGrid.setHeight("65vh");
         add(title, tabs); expand(tabs); refresh();
     }

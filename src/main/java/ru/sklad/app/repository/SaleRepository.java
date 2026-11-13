@@ -14,7 +14,7 @@ import java.time.LocalDate;
 public interface SaleRepository extends ShopRepositoryBase<Sale, Long> {
     @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     @Query("select s from Sale s where s.shop = :#{T(ru.sklad.app.util.SecurityUtils).currentShop()} and s.id = :id")
-    @org.springframework.security.access.prepost.PreAuthorize("#p0 != null and #p0.id == T(ru.sklad.app.util.SecurityUtils).currentShop().id")
+    @org.springframework.security.access.prepost.PreAuthorize("#p0 != null and #p0.id == T(ru.sklad.app.util.SecurityUtils).currentShop()?.id")
     java.util.Optional<Sale> findLockedByShopAndId(@org.springframework.data.repository.query.Param("shop") ru.sklad.app.entity.Shop shop, @Param("id") Long id);
     default java.util.Optional<Sale> findLockedById(@Param("id") Long id) { return findLockedByShopAndId(ru.sklad.app.util.SecurityUtils.currentShop(), id); }
     interface DailyRevenue {
@@ -34,12 +34,12 @@ public interface SaleRepository extends ShopRepositoryBase<Sale, Long> {
                                          @Param("method") String method);
 
     @EntityGraph(attributePaths = {"items", "items.product"})
-    @org.springframework.security.access.prepost.PreAuthorize("#p0 != null and #p0.id == T(ru.sklad.app.util.SecurityUtils).currentShop().id")
+    @org.springframework.security.access.prepost.PreAuthorize("#p0 != null and #p0.id == T(ru.sklad.app.util.SecurityUtils).currentShop()?.id")
     List<Sale> findAllByShopOrderBySaleDateDescIdDesc(ru.sklad.app.entity.Shop shop);
     default List<Sale> findAllByOrderBySaleDateDescIdDesc() { return findAllByShopOrderBySaleDateDescIdDesc(ru.sklad.app.util.SecurityUtils.currentShop()); }
 
     @EntityGraph(attributePaths = {"items", "items.product"})
-    @org.springframework.security.access.prepost.PreAuthorize("#p0 != null and #p0.id == T(ru.sklad.app.util.SecurityUtils).currentShop().id")
+    @org.springframework.security.access.prepost.PreAuthorize("#p0 != null and #p0.id == T(ru.sklad.app.util.SecurityUtils).currentShop()?.id")
     List<Sale> findByShopAndSaleDateGreaterThanEqualAndSaleDateLessThanOrderBySaleDateDescIdDesc(@org.springframework.data.repository.query.Param("shop") ru.sklad.app.entity.Shop shop,
             LocalDateTime start, LocalDateTime end);
     default List<Sale> findBySaleDateGreaterThanEqualAndSaleDateLessThanOrderBySaleDateDescIdDesc(

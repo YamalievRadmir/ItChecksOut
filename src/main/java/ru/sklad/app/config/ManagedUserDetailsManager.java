@@ -30,11 +30,11 @@ public class ManagedUserDetailsManager implements UserDetailsManager {
                 .password(user.getPassword()).roles(user.getRole()).disabled(!active).build();
     }
     public List<String> usernames() {
-        return repository.findAllByShop(security.requireCurrentShop()).stream()
+        return repository.findAllByShop(java.util.Optional.ofNullable(security.requireCurrentShop()).orElseThrow(() -> new AccessDeniedException("Shop account required"))).stream()
                 .map(ru.sklad.app.entity.User::getUsername).sorted().toList();
     }
     private ru.sklad.app.entity.User owned(String username) {
-        var shop = security.requireCurrentShop();
+        var shop = java.util.Optional.ofNullable(security.requireCurrentShop()).orElseThrow(() -> new AccessDeniedException("Shop account required"));
         var user = repository.findByUsername(username).orElseThrow(() -> new UsernameNotFoundException("Unknown user"));
         if (user.getShop() == null || !shop.getId().equals(user.getShop().getId()))
             throw new AccessDeniedException("Account belongs to another shop");
@@ -43,7 +43,7 @@ public class ManagedUserDetailsManager implements UserDetailsManager {
     @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     @Override public void createUser(UserDetails details) {
         var user = new ru.sklad.app.entity.User();
-        user.setShop(security.requireCurrentShop());
+        user.setShop(java.util.Optional.ofNullable(security.requireCurrentShop()).orElseThrow(() -> new AccessDeniedException("Shop account required")));
         user.setUsername(details.getUsername());
         apply(user, details);
         repository.save(user);

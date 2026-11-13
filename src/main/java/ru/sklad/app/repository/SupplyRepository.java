@@ -9,11 +9,11 @@ import java.util.List;
 
 public interface SupplyRepository extends ShopRepositoryBase<Supply, Long> {
     @EntityGraph(attributePaths = "product")
-    @org.springframework.security.access.prepost.PreAuthorize("#p0 != null and #p0.id == T(ru.sklad.app.util.SecurityUtils).currentShop().id")
+    @org.springframework.security.access.prepost.PreAuthorize("#p0 != null and #p0.id == T(ru.sklad.app.util.SecurityUtils).currentShop()?.id")
     List<Supply> findAllByShopOrderBySupplyDateDescIdDesc(ru.sklad.app.entity.Shop shop);
     default List<Supply> findAllByOrderBySupplyDateDescIdDesc() { return findAllByShopOrderBySupplyDateDescIdDesc(ru.sklad.app.util.SecurityUtils.currentShop()); }
 
-    @org.springframework.security.access.prepost.PreAuthorize("#p0 != null and #p0.id == T(ru.sklad.app.util.SecurityUtils).currentShop().id")
+    @org.springframework.security.access.prepost.PreAuthorize("#p0 != null and #p0.id == T(ru.sklad.app.util.SecurityUtils).currentShop()?.id")
     boolean existsByShopAndReceiptKey(ru.sklad.app.entity.Shop shop, String receiptKey);
     default boolean existsByReceiptKey(String receiptKey) { return existsByShopAndReceiptKey(ru.sklad.app.util.SecurityUtils.currentShop(), receiptKey); }
 

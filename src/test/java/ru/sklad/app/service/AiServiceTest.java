@@ -21,6 +21,7 @@ class AiServiceTest {
         when(guides.findAll(any(Sort.class))).thenReturn(List.of(a,b));
         var rest=new RestTemplate(); var server=MockRestServiceServer.bindTo(rest).build();
         server.expect(requestTo("http://127.0.0.1:11434/api/generate")).andExpect(method(HttpMethod.POST))
+            .andExpect(jsonPath("$.options.num_predict").value(1000))
             .andExpect(jsonPath("$.model").value("gemma3:12b")).andExpect(jsonPath("$.stream").value(false))
             .andExpect(jsonPath("$.prompt").value(org.hamcrest.Matchers.allOf(
                 org.hamcrest.Matchers.containsString("Ракушка для несушек"),org.hamcrest.Matchers.containsString("Кроликам сено"),
@@ -54,10 +55,20 @@ class AiServiceTest {
             assertEquals(0,ui.getChildren().count());
             assertTrue(GlobalExceptionHandler.isAiFailure(failure));
             assertFalse(GlobalExceptionHandler.isAiFailure(new IllegalStateException("Database failure")));
-            verify(errors).record(failure);
+            verifyNoInteractions(errors);
         } finally { com.vaadin.flow.component.UI.setCurrent(null); }
     }
-    @Test void rejectsBlankQuestionWithoutDatabaseOrNetworkAccess() {
+    @Test void nestedAccessDeniedIsOnlyLoggedWithoutNotificationOrErrorRecord() {
+        var errors=mock(ru.sklad.app.service.ErrorLogService.class);
+        var handler=new GlobalExceptionHandler(errors);
+        var ui=new com.vaadin.flow.component.UI(); com.vaadin.flow.component.UI.setCurrent(ui);
+        try {
+            var failure=new RuntimeException(new org.springframework.security.access.AccessDeniedException("Denied"));
+            handler.notifyVaadin(failure);
+            assertEquals(0,ui.getChildren().count());
+            verifyNoInteractions(errors);
+        } finally { java.lang.ref.Reference.reachabilityFence(ui); com.vaadin.flow.component.UI.setCurrent(null); }
+    }    @Test void rejectsBlankQuestionWithoutDatabaseOrNetworkAccess() {
         var guides=mock(AnimalGuideRepository.class); var rest=mock(RestTemplate.class);
         var ai=new AiService(guides,rest,"http://localhost:11434","model",mock(GlobalExceptionHandler.class));
         assertThrows(IllegalArgumentException.class,()->ai.askAi("  ")); verifyNoInteractions(guides,rest);

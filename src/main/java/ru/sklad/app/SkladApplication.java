@@ -10,7 +10,8 @@ import com.vaadin.flow.component.page.Viewport;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
-@com.vaadin.flow.component.page.Push
+@com.vaadin.flow.component.page.Push(value = com.vaadin.flow.shared.communication.PushMode.AUTOMATIC,
+        transport = com.vaadin.flow.shared.ui.Transport.WEBSOCKET)
 @EnableScheduling
 @Theme("my-theme")
 @Viewport("width=device-width, initial-scale=1, viewport-fit=cover")

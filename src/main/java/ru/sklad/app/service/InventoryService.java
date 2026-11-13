@@ -22,7 +22,7 @@ public class InventoryService {
         this.products = products; this.inventories = inventories;
         this.audit = audit;
     }
-    public List<Product> products() { return products.findAllByShop(ru.sklad.app.util.SecurityUtils.currentShop()); }
+    public List<Product> products() { return products.findAllByShop(ru.sklad.app.util.SecurityUtils.businessShop()); }
     public List<Inventory> history() { return inventories.findAllByOrderByInventoryDateDescIdDesc(); }
     public static BigDecimal stock(Product product) {
         return product.getStockQuantity() == null ? BigDecimal.ZERO : product.getStockQuantity();

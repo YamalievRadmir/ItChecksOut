@@ -5,7 +5,7 @@ import org.springframework.security.access.AccessDeniedException;
 public class ShopEntityListener {
  @PostLoad public void loaded(ShopOwned entity) { entity.rememberShop(); }
  @PrePersist @PreUpdate @PreRemove public void validate(ShopOwned entity) {
-   Shop current = SecurityUtils.currentShop();
+   Shop current = SecurityUtils.businessShop();
    if (entity.getOriginalShopId() != null && !entity.getOriginalShopId().equals(current.getId()))
        throw new AccessDeniedException("Cannot modify another shop's record");
    if (entity.getShop() == null) entity.setShop(current);

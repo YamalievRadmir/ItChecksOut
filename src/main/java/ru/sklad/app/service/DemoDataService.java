@@ -46,7 +46,7 @@ public class DemoDataService {
         var catalog = importer.read(priceFile);
         List<DeliveryCopy> preserved = new ArrayList<>();
         if (resetRequested) {
-            for (Delivery delivery : deliveries.findAllByShop(ru.sklad.app.util.SecurityUtils.currentShop())) {
+            for (Delivery delivery : deliveries.findAllByShop(ru.sklad.app.util.SecurityUtils.businessShop())) {
                 List<DeliveryLine> lines = delivery.getItems().stream().map(item -> new DeliveryLine(
                         match(item.getProduct().getName(), catalog.products()), item.getQuantity())).toList();
                 preserved.add(new DeliveryCopy(delivery, lines));

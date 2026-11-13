@@ -11,7 +11,7 @@ public class AiConfiguration {
     @Bean("ollamaRestTemplate")
     RestTemplate ollamaRestTemplate() {
         var factory=new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(Duration.ofSeconds(5)); factory.setReadTimeout(Duration.ofSeconds(180));
+        factory.setConnectTimeout(Duration.ofSeconds(10)); factory.setReadTimeout(Duration.ofSeconds(180));
         return new RestTemplate(factory);
     }
     @Bean("aiWorkerPool")
@@ -20,12 +20,7 @@ public class AiConfiguration {
         executor.setTaskDecorator(task -> {
             var snapshot = org.springframework.security.core.context.SecurityContextHolder.createEmptyContext();
             snapshot.setAuthentication(org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication());
-            return () -> {
-                try {
-                    org.springframework.security.core.context.SecurityContextHolder.setContext(snapshot);
-                    task.run();
-                } finally { org.springframework.security.core.context.SecurityContextHolder.clearContext(); }
-            };
+            return new org.springframework.security.concurrent.DelegatingSecurityContextRunnable(task, snapshot);
         });
         executor.setQueueCapacity(4); executor.setThreadNamePrefix("ollama-"); return executor;
     }

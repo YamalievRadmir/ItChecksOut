@@ -14,7 +14,7 @@ public class AiService {
     public static class AiUnavailableException extends RuntimeException {
         public AiUnavailableException() { super("ИИ сейчас недоступен. Проверьте Ollama и установленную модель или повторите позже."); }
     }
-    public record GenerateRequest(String model, String prompt, boolean stream) {}
+    public record GenerateRequest(String model, String prompt, boolean stream, java.util.Map<String, Integer> options) {}
     @JsonIgnoreProperties(ignoreUnknown=true)
     public record GenerateResponse(String response, String error) {}
     private final AnimalGuideRepository guides;
@@ -42,7 +42,7 @@ public class AiService {
         }
         context.append("\n--- Конец базы знаний ---\nВопрос пользователя:\n").append(prompt.trim());
         try {
-            GenerateResponse result=rest.postForObject(endpoint,new GenerateRequest(model,context.toString(),false),GenerateResponse.class);
+            GenerateResponse result=rest.postForObject(endpoint,new GenerateRequest(model,context.toString(),false, java.util.Map.of("num_predict", 1000)),GenerateResponse.class);
             if(result==null || (result.error()!=null && !result.error().isBlank()) || result.response()==null || result.response().isBlank())
                 throw new RestClientException("Ollama returned an empty or invalid response");
             return result.response().trim();

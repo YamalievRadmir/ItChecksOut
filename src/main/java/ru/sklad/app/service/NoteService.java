@@ -18,7 +18,7 @@ public class NoteService {
             "(?iu)(?<![\\d.,])(?:\\d{1,3}(?:[ \\u00a0\\u202f]\\d{3})+|\\d+)(?:[.,]\\d{1,2})?\\s*(?:₽|руб(?:лей|ля|ль|\\.)?|р\\.)(?![\\p{L}])");
     public NoteService(NoteRepository repository, AuditService audit) { this.repository = repository; this.audit = audit; }
     public List<Note> list(String type) {
-        return repository.findAllByShop(ru.sklad.app.util.SecurityUtils.currentShop()).stream().filter(n -> type == null || type.equals(n.getNoteType()))
+        return repository.findAllByShop(ru.sklad.app.util.SecurityUtils.businessShop()).stream().filter(n -> type == null || type.equals(n.getNoteType()))
                 .sorted(Comparator.comparing(Note::isResolved)
                         .thenComparing(n -> !"ИНСТРУКЦИЯ".equals(n.getNoteType()))
                         .thenComparing(Note::getCreatedAt, Comparator.reverseOrder())

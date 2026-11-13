@@ -37,7 +37,7 @@ public class ReceiptService {
 
     @PreAuthorize("@permissionService.canAccess('sales-history') and @permissionService.hasPermission('canEditReceipts')")
     public List<Choice> choices() {
-        return products.findAllByShop(ru.sklad.app.util.SecurityUtils.currentShop()).stream().sorted(Comparator.comparing(Product::getName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
+        return products.findAllByShop(ru.sklad.app.util.SecurityUtils.businessShop()).stream().sorted(Comparator.comparing(Product::getName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
                 .map(p -> new Choice(p.getId(), p.getName(), p.getRetailPrice())).toList();
     }
 

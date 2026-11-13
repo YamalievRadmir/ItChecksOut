@@ -105,7 +105,7 @@ public class ProductService {
     @Transactional
     @PreAuthorize("hasRole('ADMIN')")
     public void clearWarehouse() {
-        var shop = ru.sklad.app.util.SecurityUtils.currentShop();
+        var shop = ru.sklad.app.util.SecurityUtils.businessShop();
         for (Product product : products.findAllForUpdate()) {
             product.getAlternativeProducts().clear(); product.getRecommendedAdditives().clear();
         }

@@ -47,7 +47,8 @@ class TenantIsolationTest {
    context.setAuthentication(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken("super", "", java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_SUPER_ADMIN"))));
    try {
      assertNull(new SecurityUtils(users).getCurrentShop());
-     assertThrows(RuntimeException.class,()->products.findAll());
+     assertNull(SecurityUtils.currentShop());
+     assertTrue(products.findAll().isEmpty());
    } finally { org.springframework.security.core.context.SecurityContextHolder.clearContext(); }
  }
  @Test void purchaseDraftsAreSeparateForEachShop() {

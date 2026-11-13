@@ -12,7 +12,7 @@ import java.util.List;
 
 public interface SaleItemRepository extends ShopRepositoryBase<SaleItem, Long> {
     @Query("select i from SaleItem i where i.shop = :#{T(ru.sklad.app.util.SecurityUtils).currentShop()} and i.sale.id = :saleId order by i.id")
-    @org.springframework.security.access.prepost.PreAuthorize("#p0 != null and #p0.id == T(ru.sklad.app.util.SecurityUtils).currentShop().id")
+    @org.springframework.security.access.prepost.PreAuthorize("#p0 != null and #p0.id == T(ru.sklad.app.util.SecurityUtils).currentShop()?.id")
     List<SaleItem> findByShopAndSaleId(@org.springframework.data.repository.query.Param("shop") ru.sklad.app.entity.Shop shop, @Param("saleId") Long saleId);
     default List<SaleItem> findBySaleId(@Param("saleId") Long saleId) { return findByShopAndSaleId(ru.sklad.app.util.SecurityUtils.currentShop(), saleId); }
     interface ProductConsumption {

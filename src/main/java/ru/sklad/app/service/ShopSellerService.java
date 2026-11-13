@@ -22,10 +22,10 @@ public class ShopSellerService {
     public ShopSellerService(UserRepository users, SecurityUtils security, PasswordEncoder encoder, AuditService audit) {
         this.users = users; this.security = security; this.encoder = encoder; this.audit = audit;
     }
-    public List<User> list() { return users.findAllByShopAndRoleOrderByUsernameAsc(security.requireCurrentShop(), "SELLER"); }
+    public List<User> list() { return users.findAllByShopAndRoleOrderByUsernameAsc(java.util.Optional.ofNullable(security.requireCurrentShop()).orElseThrow(() -> new org.springframework.security.access.AccessDeniedException("Shop account required")), "SELLER"); }
     @Transactional
     public void save(Long id, String username, String password) {
-        var shop = security.requireCurrentShop();
+        var shop = java.util.Optional.ofNullable(security.requireCurrentShop()).orElseThrow(() -> new org.springframework.security.access.AccessDeniedException("Shop account required"));
         String login = username == null ? "" : username.trim();
         if (login.isBlank() || login.length() > 50) throw new IllegalArgumentException("Логин должен содержать от 1 до 50 символов");
         boolean changePassword = password != null && !password.isEmpty();

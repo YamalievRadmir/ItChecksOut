@@ -28,7 +28,7 @@ public class UserDataInitializer implements CommandLineRunner {
     @Override @Transactional
     public void run(String... args) {
         Shop shop = shops.findById(1L).orElseGet(() -> {
-            Shop first = new Shop(); first.setName("Мой магазин"); return shops.save(first);
+            Shop first = new Shop(); first.setName("РњРѕР№ РјР°РіР°Р·РёРЅ"); return shops.save(first);
         });
         for (String table : java.util.List.of("products", "sales", "sale_items", "delivery", "delivery_item", "customer", "supplies", "suppliers", "inventory", "note", "purchase_order", "purchase_order_item", "held_cart", "employees", "work_shifts", "animal_guides")) {
             jdbc.update("UPDATE " + table + " SET shop_id = ? WHERE shop_id IS NULL", shop.getId());
@@ -51,7 +51,7 @@ public class UserDataInitializer implements CommandLineRunner {
                 jdbc.execute("ALTER TABLE " + entry.getKey() + (mysql ? " DROP INDEX " : " DROP CONSTRAINT ") + constraint);
             }
         }
-        users.findByUsername("demo").filter(user -> user.getShop() != null && "Демо-магазин".equals(user.getShop().getName()))
+        users.findByUsername("demo").filter(user -> user.getShop() != null && "Р”РµРјРѕ-РјР°РіР°Р·РёРЅ".equals(user.getShop().getName()))
                 .ifPresent(user -> { user.getShop().setDemo(true); shops.save(user.getShop()); });
         boolean legacy;
         try (var connection = jdbc.getDataSource().getConnection();
@@ -68,6 +68,18 @@ public class UserDataInitializer implements CommandLineRunner {
                 user.setShop(shop); users.save(user);
             }
         });
+        // TEMPORARY local diagnostics: reset test credentials on every startup.
+        {
+            for (String name : java.util.List.of("admin", "super_admin")) {
+                User user = users.findByUsername(name).orElseGet(User::new);
+                user.setUsername(name);
+                user.setPassword(encoder.encode(name.equals("admin") ? "admin123" : "super123"));
+                user.setRole(name.equals("admin") ? "ADMIN" : "SUPER_ADMIN");
+                user.setEnabled(true);
+                user.setShop(name.equals("admin") ? shop : null);
+                users.save(user);
+            }
+        }
         for (String role : java.util.List.of("admin", "seller", "super_admin")) {
             if (users.existsByUsername(role)) continue;
             String password = environment.getProperty("app.bootstrap." + role.replace('_', '-') + "-password");

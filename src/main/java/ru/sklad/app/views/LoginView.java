@@ -50,7 +50,7 @@ public class LoginView extends VerticalLayout implements BeforeEnterObserver {
                 context.setAuthentication(auth);
                 org.springframework.security.core.context.SecurityContextHolder.setContext(context);
                 new org.springframework.security.web.context.HttpSessionSecurityContextRepository().saveContext(context, request, response);
-                getUI().ifPresent(ui -> ui.getPage().setLocation("/products"));
+                getUI().ifPresent(ui -> ui.getPage().setLocation("/"));
             } catch (Exception ex) { com.vaadin.flow.component.notification.Notification.show("Не удалось открыть демо-магазин"); }
         }));
     }
@@ -62,10 +62,20 @@ public class LoginView extends VerticalLayout implements BeforeEnterObserver {
         if (event.getLocation().getQueryParameters().getParameters().containsKey("success")
                 && auth != null && auth.isAuthenticated()
                 && !(auth instanceof org.springframework.security.authentication.AnonymousAuthenticationToken)) {
-            String destination = permissions.landingRoute();
-            event.getUI().getPage().executeJs("window.history.replaceState(null, '', $0)", destination);
-            event.getUI().getPage().reload();
+            event.getUI().getPage().setLocation("/");
             return;
+        }
+        if (event.getLocation().getQueryParameters().getParameters().containsKey("error")) {
+            var request = (com.vaadin.flow.server.VaadinServletRequest) com.vaadin.flow.server.VaadinRequest.getCurrent();
+            var session = request.getHttpServletRequest().getSession(false);
+            Object failure = session == null ? null : session.getAttribute(
+                    org.springframework.security.web.WebAttributes.AUTHENTICATION_EXCEPTION);
+            String message = failure instanceof org.springframework.security.core.AuthenticationException ex
+                    ? ex.getMessage() : "Authentication failed";
+            var notification = com.vaadin.flow.component.notification.Notification.show(
+                    "Ошибка входа: " + message, 5000, com.vaadin.flow.component.notification.Notification.Position.MIDDLE);
+            notification.addThemeVariants(com.vaadin.flow.component.notification.NotificationVariant.LUMO_ERROR);
+            if (session != null) session.removeAttribute(org.springframework.security.web.WebAttributes.AUTHENTICATION_EXCEPTION);
         }
         login.setError(event.getLocation().getQueryParameters()
                 .getParameters().containsKey("error"));

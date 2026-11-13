@@ -66,6 +66,7 @@ public class MainLayout extends AppLayout {
         account.setTooltipText(current == null ? "Аккаунт" : current.getName());
         ContextMenu accountMenu = new ContextMenu(account);
         accountMenu.setOpenOnClick(true);
+        if (!superAdmin) {
         var schemeMenu = accountMenu.addItem("Цветовая схема").getSubMenu();
         var schemeItems = new java.util.LinkedHashMap<String, com.vaadin.flow.component.contextmenu.MenuItem>();
         String[][] schemes = {{"corporate", "Корпоративный", "#2563eb"}, {"nature", "Природа", "#2e7d32"},
@@ -93,6 +94,7 @@ public class MainLayout extends AppLayout {
                 schemeItems.forEach((key, item) -> item.setChecked(key.equals(selected)));
             });
         });
+        }
         accountMenu.addItem("Выйти", event -> {
             var ui = com.vaadin.flow.component.UI.getCurrent();
             var request = (com.vaadin.flow.server.VaadinServletRequest) com.vaadin.flow.server.VaadinRequest.getCurrent();
@@ -107,8 +109,13 @@ public class MainLayout extends AppLayout {
         header.setFlexGrow(1, title);
         header.addClassName("app-header");
         addToNavbar(header);
+        theme.setVisible(!superAdmin);
         if (superAdmin) {
-            setPrimarySection(Section.NAVBAR);
+            SideNav management = new SideNav();
+            management.addItem(new SideNavItem("Управление магазинами", "super-admin", VaadinIcon.BUILDING.create()));
+            management.addItem(new SideNavItem("Системные логи", "super-admin?tab=logs", VaadinIcon.LIST.create()));
+            addToDrawer(management); toggle.setVisible(true);
+            setPrimarySection(Section.DRAWER);
             setDrawerOpened(false);
             return;
         }

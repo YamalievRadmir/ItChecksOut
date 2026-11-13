@@ -46,37 +46,22 @@ public class PermissionService {
         var auth = SecurityContextHolder.getContext().getAuthentication();
         return auth != null && auth.isAuthenticated() && auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_SUPER_ADMIN"));
     }
-    private String shopRole(String role) { return role + "@" + ru.sklad.app.util.SecurityUtils.currentShop().getId(); }
+    private String shopRole(String role) { return role + "@" + ru.sklad.app.util.SecurityUtils.businessShop().getId(); }
     public Set<String> allowed(String role) {
-        if (isSuperAdmin()) return Set.of();
-        return repository.findById(shopRole(role)).or(() -> repository.findById(role)).map(settings -> {
-            Set<String> result = new LinkedHashSet<>();
-            for (String route : settings.getAllowedViews().split(",")) {
-                if (VIEWS.containsKey(route.trim())) result.add(route.trim());
-            }
-            return result;
-        }).orElseGet(LinkedHashSet::new);
+        if (isSuperAdmin() || "SUPER_ADMIN".equals(role)) return Set.of("super-admin");
+        return Set.of("ADMIN", "SELLER").contains(role) ? VIEWS.keySet() : Set.of();
     }
-    public boolean canAccess(String route) {
-        return canAccess(SecurityContextHolder.getContext().getAuthentication(), route);
+    public boolean canAccess(String route) { return canAccess(SecurityContextHolder.getContext().getAuthentication(), route); }
+    public boolean canAccess(Authentication auth, String route) {
+        if (auth == null || !auth.isAuthenticated() || route == null) return false;
+        String path = route.replaceFirst("^/+", "");
+        var roles = auth.getAuthorities().stream().map(a -> a.getAuthority()).toList();
+        if (roles.contains("ROLE_SUPER_ADMIN")) return path.equals("super-admin") || path.startsWith("super-admin/");
+        return VIEWS.containsKey(path) && (roles.contains("ROLE_ADMIN") || roles.contains("ROLE_SELLER"));
     }
-    public boolean canAccess(Authentication authentication, String route) {
-        if (authentication == null || !authentication.isAuthenticated() || !VIEWS.containsKey(route)) return false;
-        var roles = authentication.getAuthorities().stream().map(a -> a.getAuthority()).toList();
-        if (roles.contains("ROLE_SUPER_ADMIN")) return false;
-        if (roles.contains("ROLE_ADMIN")) return true;
-        if (roles.contains("ROLE_LOADER")) return false;
-        if (route.equals("reports") && !hasPermission(authentication, "canSeeReports")) return false;
-        return roles.stream().filter(r -> r.startsWith("ROLE_"))
-                .anyMatch(r -> allowed(r.substring(5)).contains(route));
-    }
-    public String landingRoute() {
-        var auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_SUPER_ADMIN"))) return "super-admin";
-        return VIEWS.keySet().stream().filter(this::canAccess).findFirst().orElse("no-access");
-    }
+    public String landingRoute() { return isSuperAdmin() ? "super-admin" : canAccess("sales") ? "sales" : "no-access"; }
     public Set<String> sellerActions() {
-        if (isSuperAdmin()) return Set.of();
+        if (isSuperAdmin() || ru.sklad.app.util.SecurityUtils.currentShop() == null) return Set.of();
         return repository.findById(shopRole("SELLER")).or(() -> repository.findById("SELLER")).map(settings -> {
             Set<String> actions = new LinkedHashSet<>(Arrays.asList(settings.getAllowedActions().split(",")));
             actions.retainAll(ACTIONS.keySet());

@@ -59,7 +59,7 @@ public class ProductFileImporter {
     @Transactional
     @PreAuthorize("hasRole('ADMIN')")
     public ImportResult savePreview(List<Product> parsed) {
-        var shop = SecurityUtils.currentShop();
+        var shop = SecurityUtils.businessShop();
         Map<String, Product> existing = new LinkedHashMap<>();
         for (Product p : products.findAllForUpdate()) existing.putIfAbsent(p.getName().trim().toLowerCase(Locale.ROOT), p);
         int zeroPrices = 0;

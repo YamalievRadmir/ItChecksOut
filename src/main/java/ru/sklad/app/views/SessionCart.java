@@ -1,14 +1,14 @@
 package ru.sklad.app.views;
 
 import org.springframework.stereotype.Component;
-import org.springframework.web.context.annotation.SessionScope;
+import com.vaadin.flow.spring.annotation.VaadinSessionScope;
 import ru.sklad.app.entity.Product;
 import java.math.*;
 import java.util.*;
 
-/** One checkout per HTTP session, shared by successive SalesView instances. */
+/** One checkout per Vaadin session, shared by successive SalesView instances. */
 @Component
-@SessionScope
+@VaadinSessionScope
 public class SessionCart {
     private final Map<Long, CartItem> items = new LinkedHashMap<>();
     private double discountValue;
