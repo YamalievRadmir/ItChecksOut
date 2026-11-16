@@ -28,7 +28,7 @@ public class SettingsView extends VerticalLayout {
                         ru.sklad.app.service.AuditService audit, ru.sklad.app.service.BackupService backups,
                         ru.sklad.app.service.SiteParserService parser,
                         @org.springframework.beans.factory.annotation.Qualifier("aiExecutor") org.springframework.core.task.AsyncTaskExecutor executor,
-                        ru.sklad.app.config.GlobalExceptionHandler exceptionHandler, ru.sklad.app.service.ShopSellerService sellers) {
+                        ru.sklad.app.config.GlobalExceptionHandler exceptionHandler, ru.sklad.app.service.ShopSellerService sellers, ru.sklad.app.service.ImpersonationService impersonation) {
         setSizeFull();
         getStyle().set("overflow", "auto");
         add(new H2("Настройки"));
@@ -72,25 +72,33 @@ public class SettingsView extends VerticalLayout {
         TabSheet tabs = new TabSheet();
         tabs.add("Профиль и Пароли", profile);
         if (RoleAccess.isAdmin()) {
-            tabs.add("Пользователи магазина", new ShopUsersPanel(sellers));
+            tabs.add("Пользователи магазина", new ShopUsersPanel(sellers, impersonation));
             tabs.add("База знаний", new KnowledgeImportPanel(parser, executor, exceptionHandler));
-            VerticalLayout access = new VerticalLayout(new H2("Разрешенные разделы для SELLER"));
+            VerticalLayout access = new VerticalLayout(); access.setWidthFull();
+            VerticalLayout sections = new VerticalLayout(new H2("Разрешенные разделы"));
+            VerticalLayout actionsPanel = new VerticalLayout(new H2("Права на действия"));
+            for (VerticalLayout column : java.util.List.of(sections, actionsPanel)) {
+                column.setPadding(false); column.setWidthFull(); column.getStyle().set("flex", "1 1 320px").set("min-width", "0");
+            }
+            com.vaadin.flow.component.orderedlayout.HorizontalLayout columns = new com.vaadin.flow.component.orderedlayout.HorizontalLayout(sections, actionsPanel);
+            columns.setWidthFull(); columns.setAlignItems(com.vaadin.flow.component.orderedlayout.FlexComponent.Alignment.START);
+            columns.getStyle().set("flex-wrap", "wrap"); access.add(columns);
             var selected = permissions.allowed("SELLER");
             var checkboxes = new java.util.LinkedHashMap<String, com.vaadin.flow.component.checkbox.Checkbox>();
             ru.sklad.app.service.PermissionService.VIEWS.forEach((route, label) -> {
                 var checkbox = new com.vaadin.flow.component.checkbox.Checkbox(label);
                 checkbox.setValue(selected.contains(route));
                 checkboxes.put(route, checkbox);
-                access.add(checkbox);
+                checkbox.setWidthFull(); sections.add(checkbox);
             });
-            access.add(new H2("Права на действия (для SELLER)"));
+
             var selectedActions = permissions.sellerActions();
             var actionCheckboxes = new java.util.LinkedHashMap<String, com.vaadin.flow.component.checkbox.Checkbox>();
             ru.sklad.app.service.PermissionService.ACTIONS.forEach((action, label) -> {
                 var checkbox = new com.vaadin.flow.component.checkbox.Checkbox(label);
                 checkbox.setValue(selectedActions.contains(action));
                 actionCheckboxes.put(action, checkbox);
-                access.add(checkbox);
+                checkbox.setWidthFull(); actionsPanel.add(checkbox);
             });
             Button save = new Button("Сохранить", event -> {
                 var routes = new java.util.LinkedHashSet<String>();

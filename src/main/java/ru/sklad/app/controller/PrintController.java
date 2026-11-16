@@ -30,10 +30,23 @@ public class PrintController {
                 .contentType(new MediaType("text", "html", java.nio.charset.StandardCharsets.UTF_8))
                 .body(render(sale, items.findBySaleId(saleId)));
     }
+    @GetMapping(value = "/print-receipt/draft/{token}", produces = "text/html;charset=UTF-8")
+    @PreAuthorize("@permissionService.canAccess('sales')")
+    public ResponseEntity<String> draft(@PathVariable String token, jakarta.servlet.http.HttpServletRequest request) {
+        var lines = ru.sklad.app.util.DraftReceipts.load(request.getSession(false), token);
+        if (lines == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Черновик чека не найден");
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+            .contentType(new MediaType("text", "html", java.nio.charset.StandardCharsets.UTF_8))
+            .body(render(lines));
+    }
+    static String render(List<ru.sklad.app.util.DraftReceipts.Line> lines) {
+        Sale draft = ru.sklad.app.util.DraftReceipts.sale(lines);
+        return render(draft, draft.getItems());
+    }
     private static String escape(String value) { return HtmlUtils.htmlEscape(Objects.toString(value, "")); }
     private static String shortName(String name) {
         String value = Objects.toString(name, "");
-        return value.substring(0, value.offsetByCodePoints(0, Math.min(20, value.codePointCount(0, value.length()))));
+        return ru.sklad.app.util.ReceiptNames.shorten(value);
     }
     static String render(Sale sale, List<SaleItem> items) {
         StringBuilder html = new StringBuilder("""
@@ -46,17 +59,17 @@ public class PrintController {
                 * { box-sizing: border-box; }
                 html, body { width: 57mm; margin: 0; padding: 0; background: white; color: black;
                   font-family: 'Courier New', monospace; font-size: 10px; line-height: 1.4; }
-                main { width: 57mm; margin: 0; padding: 10px; }
-                h1 { margin: 0; font-size: 18px; text-align: center; }
+                main { width: 57mm; margin: 0; padding: 0; }
+                h1 { margin: 0; font-size: 10px; text-align: center; }
                 p { margin: 2px 0; overflow-wrap: anywhere; }
                 .center { text-align: center; }
-                table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 14px; margin: 4px 0; }
+                table { width: 100%; border-collapse: collapse; table-layout: fixed; word-wrap: break-word; font-size: 10px; margin: 4px 0; }
                 th, td { padding: 5px 0; vertical-align: top; overflow-wrap: anywhere; text-align: right; }
                 th:first-child, td:first-child { text-align: left; padding-right: 2px; }
                 th { border-top: 1px dashed black; border-bottom: 1px dashed black;
-                  font-size: 11px; white-space: nowrap; overflow-wrap: normal; }
+                  font-size: 10px; white-space: nowrap; overflow-wrap: normal; }
                 tr { break-inside: avoid; }
-                tbody td:last-child { font-weight: bold; font-size: 16px; overflow-wrap: normal; }
+                tbody td:last-child { font-weight: bold; font-size: 10px; overflow-wrap: normal; }
                 .quantity-value, .quantity-unit { white-space: nowrap; }
                 button { font: inherit; cursor: pointer; }
                 @media print { .print-controls { display: none !important; } }
@@ -65,7 +78,7 @@ public class PrintController {
                 <h1>Всё сходится!</h1>
                 <p class="center">Лист сборки заказа</p>
                 """);
-        html.append("<p>Чек № ").append(sale.getId()).append("</p><p>")
+        html.append(sale.getId() == null ? "<p>Лист сборки — Чек (Черновик)" : "<p>Чек № " + sale.getId()).append("</p><p>")
                 .append(escape((sale.getSaleDate() == null ? "" : sale.getSaleDate().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")))))
                 .append("</p><table><colgroup><col style='width:56%'><col style='width:44%'></colgroup>")
                 .append("<thead><tr><th>Наименование</th><th>Количество</th></tr></thead><tbody>");

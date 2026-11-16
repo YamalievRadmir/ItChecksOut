@@ -17,4 +17,6 @@ public class Inventory extends ShopOwned {
     private String employeeName;
     @Column(columnDefinition = "TEXT")
     private String notes;
+    @Column(columnDefinition = "TEXT")
+    private String itemsData;
 }

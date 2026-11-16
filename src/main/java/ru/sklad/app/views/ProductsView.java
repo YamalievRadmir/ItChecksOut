@@ -87,6 +87,7 @@ public class ProductsView extends VerticalLayout {
                         new ExcelExporter.Column<Product>("Ед. изм.", Product::getUnit),
                         new ExcelExporter.Column<Product>("Остаток", Product::getStockQuantity),
                         new ExcelExporter.Column<Product>("Цена розница", Product::getRetailPrice)));
+                    if (!permissions.hasPermission("canSeeRetailPrice")) columns.remove(columns.size() - 1);
                     if (permissions.hasPermission("canSeePurchasePrice")) columns.add(4, new ExcelExporter.Column<>("Цена закупа", Product::getPurchasePrice));
                     return ExcelExporter.export("Товары", columns, displayedProducts);
                 });
@@ -116,7 +117,7 @@ public class ProductsView extends VerticalLayout {
         grid.addColumn(product -> (Objects.toString(product.getStockQuantity(), "") + " "
                 + Objects.toString(product.getUnit(), "")).trim())
                 .setHeader("Остаток").setKey("stockQuantity");
-        grid.addColumn(product -> Objects.toString(product.getRetailPrice(), "")).setHeader("Цена (розница)").setKey("retailPrice");
+        grid.addColumn(product -> Objects.toString(product.getRetailPrice(), "")).setHeader("Цена (розница)").setKey("retailPrice").setVisible(permissions.hasPermission("canSeeRetailPrice"));
         if (permissions.hasPermission("canSeePurchasePrice")) {
             grid.addColumn(Product::getPurchasePrice).setHeader("Цена закупа").setKey("purchasePrice");
         }
@@ -127,7 +128,7 @@ public class ProductsView extends VerticalLayout {
                 .setHeader("Вид животного").setKey("animalType").setAutoWidth(true).setVisible(false);
         grid.addColumn(product -> Objects.toString(product.getAge(), ""))
                 .setHeader("Возраст").setKey("age").setAutoWidth(true).setVisible(false);
-        toolbar.addComponentAtIndex(1, ColumnVisibilityMenu.create(grid));
+        toolbar.addComponentAtIndex(1, ColumnVisibilityMenu.create(grid, permissions.hasPermission("canSeeRetailPrice") ? java.util.Set.of() : java.util.Set.of("retailPrice")));
         grid.addItemDoubleClickListener(event -> openProductDialog(event.getItem()));
 
         updateGrid();
@@ -150,7 +151,7 @@ public class ProductsView extends VerticalLayout {
         var hint = new com.vaadin.flow.component.html.Paragraph("Требования к файлу: формат .xlsx. Первая строка должна содержать заголовки колонок: «Наименование», «Цена продажи», «Остаток». Порядок колонок не важен.");
         upload.setDropLabel(new com.vaadin.flow.component.html.Span("Перетащите Excel файл (.xlsx) сюда"));
         List<Product> pending = new ArrayList<>();
-        Grid<Product> preview = new Grid<>(Product.class, false);
+        Grid<Product> preview = ru.sklad.app.util.GridColumns.compact(new Grid<>(Product.class, false));
         preview.addColumn(Product::getName).setHeader("Наименование");
         preview.addColumn(Product::getRetailPrice).setHeader("Цена продажи");
         preview.addColumn(Product::getStockQuantity).setHeader("Остаток");
@@ -191,6 +192,11 @@ public class ProductsView extends VerticalLayout {
     private void showProducts(List<Product> products) {
         displayedProducts = List.copyOf(products);
         grid.setItems(displayedProducts);
+        grid.getColumnByKey("stockQuantity").setFooter(displayedProducts.stream().map(ru.sklad.app.service.InventoryService::stock).reduce(BigDecimal.ZERO, BigDecimal::add).toPlainString());
+        for (String key : List.of("retailPrice", "purchasePrice")) {
+            var column = grid.getColumnByKey(key);
+            if (column != null && permissions.hasPermission("retailPrice".equals(key) ? "canSeeRetailPrice" : "canSeePurchasePrice")) column.setFooter(displayedProducts.stream().map(p -> ru.sklad.app.service.InventoryService.stock(p).multiply(Objects.requireNonNullElse("retailPrice".equals(key) ? p.getRetailPrice() : p.getPurchasePrice(), BigDecimal.ZERO))).reduce(BigDecimal.ZERO, BigDecimal::add).toPlainString());
+        }
     }
 
     private void openProductDialog(Product product) {
@@ -268,8 +274,9 @@ public class ProductsView extends VerticalLayout {
         }
         setNumberValue(stockQuantity, product.getStockQuantity());
         if (permissions.hasPermission("canSeePurchasePrice")) setNumberValue(purchasePrice, product.getPurchasePrice());
-        setNumberValue(retailPrice, product.getRetailPrice());
-        updateMarkup(purchasePrice, retailPrice, markup);
+        if (permissions.hasPermission("canSeeRetailPrice")) setNumberValue(retailPrice, product.getRetailPrice());
+        retailPrice.setVisible(permissions.hasPermission("canSeeRetailPrice"));
+        if (permissions.hasPermission("canSeePurchasePrice") && permissions.hasPermission("canSeeRetailPrice")) updateMarkup(purchasePrice, retailPrice, markup);
 
         boolean admin = isAdmin();
         barcode.setReadOnly(!admin && product.getId() != null);
@@ -277,7 +284,7 @@ public class ProductsView extends VerticalLayout {
         purchasePrice.setReadOnly(!admin);
         purchasePrice.setVisible(permissions.hasPermission("canSeePurchasePrice"));
         markup.setReadOnly(!admin);
-        markup.setVisible(permissions.hasPermission("canSeePurchasePrice"));
+        markup.setVisible(permissions.hasPermission("canSeePurchasePrice") && permissions.hasPermission("canSeeRetailPrice"));
         category.setReadOnly(!admin && product.getId() != null);
         unit.setReadOnly(!admin && product.getId() != null);
         retailPrice.setMin(0);
@@ -348,7 +355,7 @@ public class ProductsView extends VerticalLayout {
                 savedProduct.setUnit(unit.getValue().trim());
             }
             savedProduct.setStockQuantity(toBigDecimal(stockQuantity));
-            savedProduct.setRetailPrice(toBigDecimal(retailPrice));
+            if (permissions.hasPermission("canSeeRetailPrice")) savedProduct.setRetailPrice(toBigDecimal(retailPrice));
             if (isAdmin()) {
                 savedProduct.setAnimalType(animalType.getValue() == null ? "" : animalType.getValue().trim());
                 savedProduct.setAge(age.getValue() == null ? "" : age.getValue().trim());

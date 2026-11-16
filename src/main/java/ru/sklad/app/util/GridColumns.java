@@ -8,6 +8,7 @@ public final class GridColumns {
     private GridColumns() {}
 
     public static <T> Grid<T> compact(Grid<T> grid) {
+        addIndex(grid);
         grid.addThemeVariants(com.vaadin.flow.component.grid.GridVariant.LUMO_COMPACT);
         grid.setAllRowsVisible(false);
         grid.setWidthFull();
@@ -17,6 +18,9 @@ public final class GridColumns {
         return grid;
     }
 
+    public static <T> void addIndex(Grid<T> grid) {
+        if(grid.getColumnByKey("rowIndex") == null) grid.addColumn(new com.vaadin.flow.data.renderer.ComponentRenderer<>(item -> new com.vaadin.flow.component.html.Span(String.valueOf(grid.getListDataView().getItemIndex(item).orElse(0) + 1)))).setHeader("№").setKey("rowIndex").setWidth("70px").setFlexGrow(0);
+    }
     public static void updateGridHeight(Grid<?> grid) {
         int rows = grid.getListDataView().getItemCount();
         long height = Math.min(500L, 50L + 40L * rows);

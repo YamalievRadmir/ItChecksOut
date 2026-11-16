@@ -36,22 +36,24 @@ public class ReportsService {
     }
 
     public ChartData chartData(LocalDate today) {
-        if (today == null) throw new IllegalArgumentException("Date is required");
-        var end = today.plusDays(1).atStartOfDay();
-        var dailyTotals = new HashMap<LocalDate, BigDecimal>();
-        saleRepository.findDailyRevenue(today.minusDays(13).atStartOfDay(), end)
-                .forEach(day -> dailyTotals.put(day.getDay(), day.getRevenue()));
-        var points = new ArrayList<DayRevenue>();
-        for (int i = 13; i >= 0; i--) {
-            LocalDate day = today.minusDays(i);
-            points.add(new DayRevenue(day, dailyTotals.getOrDefault(day, BigDecimal.ZERO)));
-        }
-        var start = today.minusDays(29).atStartOfDay();
-        return new ChartData(points, sales.findTopProductsNet(start, end, PageRequest.of(0, 5)),
-                sales.findCategoryRevenue(start, end));
+        return chartData(today.withDayOfMonth(1), today);
     }
-
-    public record DayRevenue(LocalDate day, BigDecimal revenue) {}
+    public ChartData chartData(LocalDate from, LocalDate to) {
+        validatePeriod(from, to);
+        var start = from.atStartOfDay(); var end = to.plusDays(1).atStartOfDay();
+        var totals = new HashMap<LocalDate, SaleRepository.DailyRevenue>();
+        saleRepository.findDailyRevenue(start, end).forEach(day -> totals.put(day.getDay(), day));
+        var points = new ArrayList<DayRevenue>();
+        for (LocalDate day = from; !day.isAfter(to); day = day.plusDays(1)) {
+            var value = totals.get(day);
+            points.add(new DayRevenue(day, value == null ? BigDecimal.ZERO : value.getRevenue(),
+                    value == null ? 0 : Objects.requireNonNullElse(value.getReceiptCount(), 0L)));
+        }
+        return new ChartData(points, sales.findTopProductsNet(start, end, PageRequest.of(0, 5)), sales.findCategoryRevenue(start, end));
+    }
+    public record DayRevenue(LocalDate day, BigDecimal revenue, long receiptCount) {
+        public DayRevenue(LocalDate day, BigDecimal revenue) { this(day, revenue, 0); }
+    }
     public record DaySales(LocalDate day, BigDecimal quantity, BigDecimal revenue,
                            BigDecimal profit, BigDecimal purchase) {}
     public record DayProduct(Long productId, String name, String unit, BigDecimal quantity,

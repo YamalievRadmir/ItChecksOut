@@ -25,7 +25,7 @@ public class MainLayout extends AppLayout {
                       ru.sklad.app.service.DeliveryService deliveries,
                       ru.sklad.app.service.AiService ai,
                       @org.springframework.beans.factory.annotation.Qualifier("aiExecutor") org.springframework.core.task.AsyncTaskExecutor aiExecutor,
-                      ru.sklad.app.config.GlobalExceptionHandler errors, ru.sklad.app.service.ThemePreferenceService themePreferences) {
+                      ru.sklad.app.config.GlobalExceptionHandler errors, ru.sklad.app.service.ThemePreferenceService themePreferences, ru.sklad.app.service.ImpersonationService impersonation) {
         this.deliveries = deliveries;
         this.permissions = permissions;
         deliveryBadge.setVisible(false);
@@ -109,6 +109,15 @@ public class MainLayout extends AppLayout {
         header.setFlexGrow(1, title);
         header.addClassName("app-header");
         addToNavbar(header);
+        if(impersonation.active()) {
+            var warning=new com.vaadin.flow.component.html.Span("⚠️ Вы вошли как " + current.getName());
+            var back=new Button("Вернуться в свой аккаунт",event -> {
+                try { impersonation.restore(); } catch(org.springframework.security.access.AccessDeniedException ex) { com.vaadin.flow.component.notification.Notification.show(ex.getMessage()); }
+            });
+            var banner=new HorizontalLayout(warning,back); banner.setWidthFull(); banner.setAlignItems(Alignment.CENTER);
+            banner.getStyle().set("background","#b91c1c").set("color","white").set("padding","8px 16px").set("box-sizing","border-box");
+            addToNavbar(banner);
+        }
         theme.setVisible(!superAdmin);
         if (superAdmin) {
             SideNav management = new SideNav();
@@ -138,7 +147,12 @@ public class MainLayout extends AppLayout {
         ru.sklad.app.service.PermissionService.VIEWS.forEach((route, label) -> {
             if (permissions.canAccess(route)) {
                 SideNavItem item = new SideNavItem(label, route, icons.get(route).create());
-                if ("deliveries".equals(route)) item.setSuffixComponent(deliveryBadge);
+                if ("deliveries".equals(route)) {
+                    // Keep the suffix slot attached even when the counter itself is hidden.
+                    var suffix = new com.vaadin.flow.component.html.Span(deliveryBadge);
+                    suffix.getStyle().set("display", "inline-flex").set("align-items", "center");
+                    item.setSuffixComponent(suffix);
+                }
                 navigation.addItem(item);
             }
         });
@@ -147,6 +161,7 @@ public class MainLayout extends AppLayout {
         website.getStyle().set("margin-top", "var(--lumo-space-m)");
         navigation.addItem(website);
         addToDrawer(navigation);
+        addAttachListener(event -> refreshDeliveryBadge());
     }
 
     @Override

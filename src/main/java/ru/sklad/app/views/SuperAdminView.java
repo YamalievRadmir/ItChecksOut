@@ -28,7 +28,7 @@ public class SuperAdminView extends VerticalLayout {
     private Map<Long, Long> userCounts = Map.of();
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss");
 
-    public SuperAdminView(ShopAdminService shops, SuperAdminService admin) {
+    public SuperAdminView(ShopAdminService shops, SuperAdminService admin, ImpersonationService impersonation) {
         this.shops = shops; this.admin = admin;
         setSizeFull(); setPadding(true); setSpacing(true);
         getStyle().set("box-sizing", "border-box").set("max-width", "1440px").set("margin", "0 auto");
@@ -42,6 +42,11 @@ public class SuperAdminView extends VerticalLayout {
         create.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         VerticalLayout shopTab = panel(); shopTab.add(create, shopGrid); shopTab.setFlexGrow(0, shopGrid);
         userGrid.addColumn(User::getUsername).setHeader("Логин").setSortable(true);
+        userGrid.addComponentColumn(user -> {
+            Button loginAs = impersonation.button(user.getUsername());
+            loginAs.setVisible("ADMIN".equals(user.getRole()) || "SELLER".equals(user.getRole()));
+            return loginAs;
+        }).setHeader("Войти как").setKey("impersonate").setWidth("150px").setFlexGrow(0).setFrozen(true);
         userGrid.addColumn(User::getRole).setHeader("Роль").setSortable(true);
         userGrid.addColumn(user -> shopName(user.getShop())).setHeader("Магазин").setFlexGrow(2);
         userGrid.addComponentColumn(user -> new Button("Редактировать", event -> editUser(user))).setHeader("Действия");
@@ -62,20 +67,18 @@ public class SuperAdminView extends VerticalLayout {
         });        userGrid.addItemDoubleClickListener(event -> editUser(event.getItem()));
         VerticalLayout userTab = panel();
         userTab.add(new Span("Дважды нажмите на пользователя, чтобы изменить логин или пароль."), userGrid); userTab.setFlexGrow(0, userGrid);
-        VerticalLayout logsContent = panel();
-        VerticalLayout errors = errorLogs();
-        VerticalLayout audit = auditLogs();
-        errors.setHeight("50%"); audit.setHeight("50%");
-        errors.addComponentAsFirst(new H2("Журнал ошибок"));
-        audit.addComponentAsFirst(new H2("Журнал аудита"));
-        logsContent.add(errors, audit);
-        logsContent.expand(errors, audit);
+        TabSheet logsContent = new TabSheet();
+        logsContent.setSizeFull();
+        logsContent.getStyle().set("min-height", "0").set("min-width", "0");
+        logsContent.add("Ошибки", errorLogs());
+        logsContent.add("Аудит", auditLogs());
         Tab shopsTab = tabs.add("Магазины", shopTab);
         Tab usersTab = tabs.add("Пользователи", userTab);
         Tab logsTab = tabs.add("Системные логи", logsContent);
         tabs.setSelectedTab(shopsTab);
         addAttachListener(event -> {
             var query = event.getUI().getInternals().getActiveViewLocation().getQueryParameters();
+            if (query.getParameters().getOrDefault("tab", java.util.List.of()).contains("users")) tabs.setSelectedTab(usersTab);
             if (query.getParameters().getOrDefault("tab", java.util.List.of()).contains("logs")) tabs.setSelectedTab(logsTab);
         });
         shopGrid.setWidthFull(); shopGrid.setHeight("65vh"); userGrid.setWidthFull(); userGrid.setHeight("65vh");
@@ -166,6 +169,17 @@ public class SuperAdminView extends VerticalLayout {
         next.addClickListener(event -> { page[0]++; refresh.run(); });
         Button reload = new Button("Обновить", event -> { page[0] = 0; refresh.run(); });
         HorizontalLayout controls = new HorizontalLayout(previous, status, next, reload); controls.setAlignItems(Alignment.CENTER);
-        VerticalLayout layout = panel(); layout.add(controls, grid); layout.setFlexGrow(0, grid); refresh.run(); return layout;
+        controls.setWidthFull();
+        controls.getStyle().set("flex-shrink", "0").set("flex-wrap", "wrap");
+        grid.setHeightFull();
+        grid.setMinHeight("0");
+        grid.setMaxHeight("none");
+        grid.getStyle().set("flex-basis", "0");
+        VerticalLayout layout = panel();
+        layout.getStyle().set("overflow", "hidden");
+        layout.add(controls, grid);
+        layout.setFlexGrow(1, grid);
+        refresh.run();
+        return layout;
     }
 }

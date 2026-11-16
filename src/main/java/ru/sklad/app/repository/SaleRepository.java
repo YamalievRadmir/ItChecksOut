@@ -20,9 +20,10 @@ public interface SaleRepository extends ShopRepositoryBase<Sale, Long> {
     interface DailyRevenue {
         LocalDate getDay();
         BigDecimal getRevenue();
+        Long getReceiptCount();
     }
 
-    @Query("select cast(s.saleDate as LocalDate) as day, sum(coalesce(s.finalSum, s.totalSum)) as revenue "
+    @Query("select cast(s.saleDate as LocalDate) as day, sum(coalesce(s.finalSum, s.totalSum)) as revenue, count(s.id) as receiptCount "
             + "from Sale s where s.shop = :#{T(ru.sklad.app.util.SecurityUtils).currentShop()} and s.saleDate >= :start and s.saleDate < :end "
             + "group by cast(s.saleDate as LocalDate) order by cast(s.saleDate as LocalDate)")
     List<DailyRevenue> findDailyRevenue(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);

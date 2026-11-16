@@ -30,11 +30,20 @@ public class NoteService {
     }
     @Transactional
     public Note create(String type, String title, String content) {
+        return create(type, title, content, null);
+    }
+    @Transactional
+    public Note create(String type, String title, String content, java.math.BigDecimal debtAmount) {
         validate(type, title, content);
-        Note note = new Note(); note.setNoteType(type); note.setTitle(title.trim()); note.setContent(content.trim());
+        validateAmount(debtAmount);
+        Note note = new Note(); note.setDebtAmount("ДОЛГ".equals(type) ? debtAmount : null); note.setNoteType(type); note.setTitle(title.trim()); note.setContent(content.trim());
         Note saved = repository.saveAndFlush(note);
         audit.safeLogAction("СОЗДАНИЕ", "Заметка", saved.getTitle() + " (#" + saved.getId() + ")", "Тип: " + type + "; " + saved.getContent());
         return saved;
+    }
+    private static void validateAmount(java.math.BigDecimal amount) {
+        if (amount != null && (amount.signum() < 0 || amount.stripTrailingZeros().scale() > 2 || amount.precision() - amount.scale() > 17))
+            throw new IllegalArgumentException("Укажите неотрицательную сумму долга с точностью до двух знаков");
     }
     private static void validate(String type, String title, String content) {
         if (!Set.of("ДОЛГ", "ИНСТРУКЦИЯ", "ПРОЧЕЕ").contains(Objects.toString(type, "")))
@@ -48,8 +57,14 @@ public class NoteService {
     }
     @Transactional
     public Note update(Long id, String type, String title, String content) {
+        return update(id, type, title, content, get(id).getDebtAmount());
+    }
+    @Transactional
+    public Note update(Long id, String type, String title, String content, java.math.BigDecimal debtAmount) {
         validate(type, title, content);
+        validateAmount(debtAmount);
         Note note = lock(id);
+        note.setDebtAmount("ДОЛГ".equals(type) ? debtAmount : null);
         String before = note.getNoteType() + "; " + note.getTitle() + "; " + note.getContent();
         note.setNoteType(type); note.setTitle(title.trim()); note.setContent(content.trim());
         Note saved = repository.saveAndFlush(note);

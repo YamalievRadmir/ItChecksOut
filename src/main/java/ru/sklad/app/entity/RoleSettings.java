@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 
 @Entity
 public class RoleSettings {
-    public static final String DEFAULT_ACTIONS = "canEditProduct,canGiveDiscount,canMakeSupply,canSeeReports";
+    public static final String DEFAULT_ACTIONS = "canEditProduct,canGiveDiscount,canMakeSupply,canSeeReports,canSeeRetailPrice";
     @Id
     @Column(nullable = false, unique = true)
     private String roleName;

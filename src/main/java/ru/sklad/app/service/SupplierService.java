@@ -30,7 +30,7 @@ public class SupplierService {
                 .orElseThrow(() -> new IllegalArgumentException("Поставщик больше не существует"));
         String before = id == null ? "" : "Название: " + supplier.getName() + "; Телефон: " + supplier.getPhone()
                 + "; Адрес: " + supplier.getAddress() + "; Комментарий: " + supplier.getComment() + " → ";
-        supplier.setName(name.trim()); supplier.setPhone(Objects.toString(phone, "").trim());
+        supplier.setName(name.trim()); supplier.setPhone(ru.sklad.app.util.PhoneFields.format(phone));
         supplier.setAddress(Objects.toString(address, "").trim()); supplier.setComment(Objects.toString(comment, "").trim());
         Supplier saved = repository.saveAndFlush(supplier);
         audit.safeLogAction(id == null ? "СОЗДАНИЕ" : "ИЗМЕНЕНИЕ", "Поставщик", saved.getName() + " (#" + saved.getId() + ")",

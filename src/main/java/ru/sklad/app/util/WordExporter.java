@@ -42,19 +42,22 @@ public final class WordExporter {
         return document;
     }
 
+    public static XWPFDocument receipt(List<DraftReceipts.Line> lines) {
+        return receipt(DraftReceipts.sale(lines));
+    }
     public static XWPFDocument receipt(Sale sale) {
-        if (sale == null || sale.getId() == null) {
-            throw new IllegalArgumentException("Сначала проведите продажу");
+        if (sale == null) {
+            throw new IllegalArgumentException("Нет данных для печати");
         }
         XWPFDocument document = document();
         title(document, "Всё сходится!");
-        title(document, "Товарный чек № " + sale.getId());
-        paragraph(document, "Дата и время продажи: "
+        title(document, sale.getId() == null ? "Лист сборки — Чек (Черновик)" : "Товарный чек № " + sale.getId());
+        paragraph(document, (sale.getId() == null ? "Дата и время сборки: " : "Дата и время продажи: ")
                 + sale.getSaleDate().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss")), false);
-        paragraph(document, "Оплата: " + ("CASHLESS".equals(sale.getPaymentMethod()) ? "Безнал" : "Наличные"), false);
+        if (sale.getId() != null) paragraph(document, "Оплата: " + ("CASHLESS".equals(sale.getPaymentMethod()) ? "Безнал" : "Наличные"), false);
         XWPFTable table = table(document, new String[]{"Товар", "Кол-во", "Цена, руб.", "Сумма, руб."});
         for (var item : sale.getItems()) {
-            row(table, item.getProductName(), item.getQuantity().stripTrailingZeros().toPlainString(),
+            row(table, ReceiptNames.shorten(item.getProductName()), item.getQuantity().stripTrailingZeros().toPlainString(),
                     money(item.getRetailPrice()), money(item.getTotalSum()));
         }
         if (sale.getDiscountSum().signum() > 0) {
@@ -64,6 +67,23 @@ public final class WordExporter {
         total(document, "ИТОГО: " + money(sale.getFinalSum()) + " руб.");
         XWPFParagraph thanks = paragraph(document, "Спасибо за покупку!", false);
         thanks.setAlignment(ParagraphAlignment.CENTER);
+        var section=document.getDocument().getBody().getSectPr();
+        section.getPgSz().setW(BigInteger.valueOf(1615));
+        var margins=section.getPgMar();
+        margins.setTop(BigInteger.ZERO); margins.setBottom(BigInteger.ZERO); margins.setLeft(BigInteger.ZERO); margins.setRight(BigInteger.ZERO);
+        margins.setHeader(BigInteger.ZERO); margins.setFooter(BigInteger.ZERO); margins.setGutter(BigInteger.ZERO);
+        for(var p:document.getParagraphs()) { p.setSpacingAfter(20); p.setSpacingBefore(0); for(var run:p.getRuns()) { run.setFontFamily("Courier New"); run.setFontSize(9); } }
+        table.setWidth(1615); table.setCellMargins(0,0,0,0);
+        var properties=table.getCTTbl().getTblPr();
+        var layout=properties.isSetTblLayout()?properties.getTblLayout():properties.addNewTblLayout();
+        layout.setType(org.openxmlformats.schemas.wordprocessingml.x2006.main.STTblLayoutType.FIXED);
+        int[] widths={650,285,340,340};
+        var grid=table.getCTTbl().getTblGrid();
+        if(grid!=null) { while(grid.sizeOfGridColArray()>0) grid.removeGridCol(0); for(int width:widths) grid.addNewGridCol().setW(BigInteger.valueOf(width)); }
+        for(var row:table.getRows()) for(int c=0;c<row.getTableCells().size();c++) {
+            var cell=row.getCell(c); cell.setWidth(Integer.toString(widths[c]));
+            for(var p:cell.getParagraphs()) { p.setSpacingBefore(0); p.setSpacingAfter(0); for(var run:p.getRuns()) { run.setFontFamily("Courier New"); run.setFontSize(8); } }
+        }
         return document;
     }
 

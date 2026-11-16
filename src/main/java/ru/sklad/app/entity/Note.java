@@ -17,6 +17,8 @@ public class Note extends ShopOwned {
     private String content;
     @Column(nullable = false)
     private String noteType;
+    @Column(precision = 19, scale = 2)
+    private java.math.BigDecimal debtAmount;
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
     @Column(nullable = false)

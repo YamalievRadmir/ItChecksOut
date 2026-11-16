@@ -15,11 +15,11 @@ public interface DeliveryRepository extends ShopRepositoryBase<Delivery, Long> {
     @org.springframework.security.access.prepost.PreAuthorize("#p0 != null and #p0.id == T(ru.sklad.app.util.SecurityUtils).currentShop()?.id")
     Optional<Delivery> findLockedByShopAndId(@org.springframework.data.repository.query.Param("shop") ru.sklad.app.entity.Shop shop, @org.springframework.data.repository.query.Param("id") Long id);
     default Optional<Delivery> findLockedById(@org.springframework.data.repository.query.Param("id") Long id) { return findLockedByShopAndId(ru.sklad.app.util.SecurityUtils.currentShop(), id); }
-    @EntityGraph(attributePaths = "customer")
+    @EntityGraph(attributePaths = {"customer", "items", "items.product"})
     @org.springframework.security.access.prepost.PreAuthorize("#p0 != null and #p0.id == T(ru.sklad.app.util.SecurityUtils).currentShop()?.id")
     List<Delivery> findByShopAndDeliveryDateOrderByDeliveryTimeAscIdAsc(ru.sklad.app.entity.Shop shop, java.time.LocalDate date);
     default List<Delivery> findByDeliveryDateOrderByDeliveryTimeAscIdAsc(java.time.LocalDate date) { return findByShopAndDeliveryDateOrderByDeliveryTimeAscIdAsc(ru.sklad.app.util.SecurityUtils.currentShop(), date); }
-    @EntityGraph(attributePaths = "customer")
+    @EntityGraph(attributePaths = {"customer", "items", "items.product"})
     @org.springframework.security.access.prepost.PreAuthorize("#p0 != null and #p0.id == T(ru.sklad.app.util.SecurityUtils).currentShop()?.id")
     List<Delivery> findAllByShopOrderByDeliveryDateDescDeliveryTimeDescIdDesc(ru.sklad.app.entity.Shop shop);
     default List<Delivery> findAllByOrderByDeliveryDateDescDeliveryTimeDescIdDesc() { return findAllByShopOrderByDeliveryDateDescDeliveryTimeDescIdDesc(ru.sklad.app.util.SecurityUtils.currentShop()); }

@@ -14,12 +14,13 @@ import ru.sklad.app.service.ShopSellerService;
 public class ShopUsersPanel extends VerticalLayout {
     private final ShopSellerService service;
     private final Grid<User> grid = ru.sklad.app.util.GridColumns.compact(new Grid<>(User.class, false));
-    public ShopUsersPanel(ShopSellerService service) {
+    public ShopUsersPanel(ShopSellerService service, ru.sklad.app.service.ImpersonationService impersonation) {
         this.service = service;
         setWidthFull(); setPadding(true);
         Button add = new Button("Добавить продавца", event -> edit(null));
         add.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         grid.addColumn(User::getUsername).setHeader("Логин").setSortable(true);
+        grid.addComponentColumn(user -> impersonation.button(user.getUsername())).setHeader("Войти как");
         grid.addColumn(User::getRole).setHeader("Роль");
         grid.addComponentColumn(user -> new Button("Редактировать", event -> edit(user))).setHeader("Действия");
         grid.addItemDoubleClickListener(event -> edit(event.getItem()));

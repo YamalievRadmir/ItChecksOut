@@ -45,6 +45,8 @@ public class DeliveriesView extends VerticalLayout {
     private final CustomerRepository customers;
     private final ProductRepository products;
     private final Grid<Delivery> grid = ru.sklad.app.util.GridColumns.compact(new Grid<>(Delivery.class, false));
+    private final Grid<Delivery> pastGrid = ru.sklad.app.util.GridColumns.compact(new Grid<>(Delivery.class, false));
+    private final Span currentBadge = new Span();
     private final Grid<Customer> customerGrid = ru.sklad.app.util.GridColumns.compact(new Grid<>(Customer.class, false));
     private final DatePicker selectedDate = new DatePicker("Дата доставки", LocalDate.now());
 
@@ -64,10 +66,34 @@ public class DeliveriesView extends VerticalLayout {
                 new Button("Сегодня", e -> selectedDate.setValue(LocalDate.now())),
                 new Button("Завтра", e -> selectedDate.setValue(LocalDate.now().plusDays(1))), create);
         filters.setAlignItems(Alignment.BASELINE); filters.addClassName("app-toolbar");
+        configureDeliveryGrid(grid);
+        configureDeliveryGrid(pastGrid);
+        VerticalLayout requests = new VerticalLayout(filters, grid);
+        requests.addClassNames("compact-tab-body", "app-card"); requests.setPadding(false); requests.setWidthFull(); requests.setFlexGrow(0, grid);
+        customerGrid.addColumn(Customer::getName).setHeader("Имя");
+        customerGrid.addColumn(c -> ru.sklad.app.util.PhoneFields.format(c.getPhone())).setHeader("Телефон");
+        customerGrid.addColumn(Customer::getAddress).setHeader("Адрес").setFlexGrow(2);
+        GridColumns.configure(customerGrid, "Имя", "Адрес");
+        customerGrid.setWidthFull(); customerGrid.setHeight("50px");
+        Button addCustomer = new Button("Добавить заказчика", e -> createCustomer());
+        addCustomer.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        VerticalLayout customerTab = new VerticalLayout(addCustomer, customerGrid);
+        customerTab.addClassNames("compact-tab-body", "app-card"); customerTab.setPadding(false); customerTab.setWidthFull(); customerTab.setFlexGrow(0, customerGrid);
+        com.vaadin.flow.component.tabs.TabSheet tabs = new com.vaadin.flow.component.tabs.TabSheet();
+        currentBadge.getElement().getThemeList().add("badge"); currentBadge.getElement().getThemeList().add("error");
+        currentBadge.getStyle().set("background", "#b91c1c").set("color", "white").set("margin-left", "8px");
+        var currentTab = new com.vaadin.flow.component.tabs.Tab(new Span("Актуальные"), currentBadge);
+        tabs.add(currentTab, requests);
+        tabs.add("Прошлые", ru.sklad.app.util.AppCards.table(pastGrid));
+        tabs.add("Заказчики", customerTab);
+        tabs.setSelectedTab(currentTab); tabs.setWidthFull(); tabs.addClassName("compact-tabs");
+        add(tabs); setFlexGrow(0, tabs); refresh(); refreshCustomers();
+    }
+    private void configureDeliveryGrid(Grid<Delivery> grid) {
         grid.addColumn(d -> d.getDeliveryDate().format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))).setHeader("Дата");
         grid.addColumn(d -> d.getDeliveryTime().format(DateTimeFormatter.ofPattern("HH:mm"))).setHeader("Время");
         grid.addColumn(d -> d.getCustomer().getName()).setHeader("Клиент").setFlexGrow(2);
-        grid.addColumn(d -> d.getCustomer().getPhone()).setHeader("Телефон");
+        grid.addColumn(d -> ru.sklad.app.util.PhoneFields.format(d.getCustomer().getPhone())).setHeader("Телефон");
         grid.addColumn(d -> money(d.getTotalSum())).setHeader("Сумма");
         grid.addComponentColumn(d -> {
             Span badge = new Span(d.getStatus());
@@ -97,27 +123,24 @@ public class DeliveriesView extends VerticalLayout {
                 Long id = e.getValue().getId(); grid.deselectAll(); edit(id);
             }
         });
-        VerticalLayout requests = new VerticalLayout(filters, grid);
-        requests.addClassNames("compact-tab-body", "app-card"); requests.setPadding(false); requests.setWidthFull(); requests.setFlexGrow(0, grid);
-        customerGrid.addColumn(Customer::getName).setHeader("Имя");
-        customerGrid.addColumn(Customer::getPhone).setHeader("Телефон");
-        customerGrid.addColumn(Customer::getAddress).setHeader("Адрес").setFlexGrow(2);
-        GridColumns.configure(customerGrid, "Имя", "Адрес");
-        customerGrid.setWidthFull(); customerGrid.setHeight("50px");
-        Button addCustomer = new Button("Добавить заказчика", e -> createCustomer());
-        addCustomer.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-        VerticalLayout customerTab = new VerticalLayout(addCustomer, customerGrid);
-        customerTab.addClassNames("compact-tab-body", "app-card"); customerTab.setPadding(false); customerTab.setWidthFull(); customerTab.setFlexGrow(0, customerGrid);
-        com.vaadin.flow.component.tabs.TabSheet tabs = new com.vaadin.flow.component.tabs.TabSheet();
-        tabs.add("Заявки", requests); tabs.add("Заказчики", customerTab); tabs.setWidthFull(); tabs.addClassName("compact-tabs");
-        add(tabs); setFlexGrow(0, tabs); refresh(); refreshCustomers();
     }
     private void refresh() {
-        grid.setItems(selectedDate.isInvalid() ? List.of() : service.list(selectedDate.getValue()));
+        // Count the same rows that are displayed, including when another date is selected.
+        List<Delivery> current = selectedDate.isInvalid() ? List.of() : service.list(selectedDate.getValue()).stream()
+                .filter(d -> "Новая".equals(d.getStatus())).toList();
+        grid.setItems(current);
+        pastGrid.setItems(service.list().stream().filter(d -> "Выполнена".equals(d.getStatus()) || "Отменена".equals(d.getStatus())).toList());
+        GridColumns.updateGridHeight(pastGrid);
+        currentBadge.setText(Integer.toString(current.size()));
+        currentBadge.setVisible(!current.isEmpty());
+        currentBadge.getElement().setAttribute("aria-label", "Новых доставок на выбранную дату: " + current.size());
         GridColumns.updateGridHeight(grid);
-        getUI().ifPresent(ui -> ui.getChildren()
-                .filter(MainLayout.class::isInstance).map(MainLayout.class::cast)
-                .forEach(MainLayout::refreshDeliveryBadge));
+        // The router layout is an ancestor, not necessarily a direct UI child.
+        com.vaadin.flow.component.Component parent = getParent().orElse(null);
+        while (parent != null) {
+            if (parent instanceof MainLayout main) { main.refreshDeliveryBadge(); break; }
+            parent = parent.getParent().orElse(null);
+        }
     }
     private void refreshCustomers() { customerGrid.setItems(service.customers()); GridColumns.updateGridHeight(customerGrid); }
 
@@ -205,12 +228,12 @@ public class DeliveriesView extends VerticalLayout {
             name.setVisible(selected == null);
             address.setReadOnly(selected != null); phone.setReadOnly(selected != null);
             address.setValue(selected == null ? "" : selected.getAddress());
-            phone.setValue(selected == null ? "" : selected.getPhone());
+            phone.setValue(selected == null ? "" : ru.sklad.app.util.PhoneFields.format(selected.getPhone()));
         });
         DatePicker date = new DatePicker("Дата доставки", existing == null
                 ? Objects.requireNonNullElse(selectedDate.getValue(), LocalDate.now()) : existing.getDeliveryDate());
         date.setMin(LocalDate.of(1, 1, 1)); date.setMax(LocalDate.of(9999, 12, 31)); date.setRequiredIndicatorVisible(true);
-        TimePicker time = new TimePicker("Время доставки"); time.setStep(Duration.ofMinutes(1));
+        TimePicker time = new TimePicker("Время доставки"); time.setStep(Duration.ofMinutes(1)); time.getElement().addPropertyChangeListener("value", "input", event -> {}); time.setLocale(java.util.Locale.forLanguageTag("ru-RU"));
         time.setValue(existing == null ? LocalTime.of(9, 0) : existing.getDeliveryTime()); time.setRequiredIndicatorVisible(true);
         RadioButtonGroup<String> payment = new RadioButtonGroup<>();
         payment.setLabel("Оплата"); payment.setItems("Нал", "Безнал");
@@ -314,7 +337,7 @@ public class DeliveriesView extends VerticalLayout {
         VerticalLayout content = new VerticalLayout(details, basket); content.setPadding(false);
         dialog.add(content); refreshCart.run();
         Button save = new Button("Сохранить", e -> {
-            if (date.isInvalid() || time.isInvalid()) { Notification.show("Проверьте дату и время доставки"); return; }
+            if (date.isInvalid() || time.isInvalid() || time.getValue() == null || phone.isInvalid()) { Notification.show("Проверьте дату и время доставки"); return; }
             Map<Long, BigDecimal> quantities = new LinkedHashMap<>();
             cart.forEach((productId, line) -> quantities.put(productId, line.quantity()));
             try {

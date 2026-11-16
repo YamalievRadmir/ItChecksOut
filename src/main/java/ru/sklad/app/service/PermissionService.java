@@ -17,6 +17,7 @@ public class PermissionService {
         var actions = new LinkedHashMap<String, String>();
         actions.put("canCreateProduct", "Создавать товар");
         actions.put("canEditProduct", "Редактировать товар");
+        actions.put("canSeeRetailPrice", "Видеть цену розницы");
         actions.put("canSeePurchasePrice", "Видеть закупочную цену");
         actions.put("canGiveDiscount", "Давать скидку");
         actions.put("canMakeSupply", "Оприходовать товар");
@@ -49,7 +50,12 @@ public class PermissionService {
     private String shopRole(String role) { return role + "@" + ru.sklad.app.util.SecurityUtils.businessShop().getId(); }
     public Set<String> allowed(String role) {
         if (isSuperAdmin() || "SUPER_ADMIN".equals(role)) return Set.of("super-admin");
-        return Set.of("ADMIN", "SELLER").contains(role) ? VIEWS.keySet() : Set.of();
+        if ("ADMIN".equals(role)) return VIEWS.keySet();
+        if (!"SELLER".equals(role)) return Set.of();
+        return repository.findById(shopRole("SELLER")).or(() -> repository.findById("SELLER"))
+                .map(settings -> Arrays.stream(Objects.toString(settings.getAllowedViews(), "").split(","))
+                        .map(String::trim).filter(VIEWS::containsKey).collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new)))
+                .orElseGet(LinkedHashSet::new);
     }
     public boolean canAccess(String route) { return canAccess(SecurityContextHolder.getContext().getAuthentication(), route); }
     public boolean canAccess(Authentication auth, String route) {
@@ -57,9 +63,9 @@ public class PermissionService {
         String path = route.replaceFirst("^/+", "");
         var roles = auth.getAuthorities().stream().map(a -> a.getAuthority()).toList();
         if (roles.contains("ROLE_SUPER_ADMIN")) return path.equals("super-admin") || path.startsWith("super-admin/");
-        return VIEWS.containsKey(path) && (roles.contains("ROLE_ADMIN") || roles.contains("ROLE_SELLER"));
+        return VIEWS.containsKey(path) && (roles.contains("ROLE_ADMIN") || (roles.contains("ROLE_SELLER") && allowed("SELLER").contains(path)));
     }
-    public String landingRoute() { return isSuperAdmin() ? "super-admin" : canAccess("sales") ? "sales" : "no-access"; }
+    public String landingRoute() { return isSuperAdmin() ? "super-admin" : canAccess("sales") ? "sales" : VIEWS.keySet().stream().filter(this::canAccess).findFirst().orElse("no-access"); }
     public Set<String> sellerActions() {
         if (isSuperAdmin() || ru.sklad.app.util.SecurityUtils.currentShop() == null) return Set.of();
         return repository.findById(shopRole("SELLER")).or(() -> repository.findById("SELLER")).map(settings -> {

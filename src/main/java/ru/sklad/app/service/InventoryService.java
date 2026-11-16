@@ -18,12 +18,23 @@ public class InventoryService {
     private final ProductRepository products;
     private final InventoryRepository inventories;
     private final AuditService audit;
+    @org.springframework.beans.factory.annotation.Autowired private ru.sklad.app.repository.InventoryDraftRepository drafts;
     public InventoryService(ProductRepository products, InventoryRepository inventories, AuditService audit) {
         this.products = products; this.inventories = inventories;
         this.audit = audit;
     }
     public List<Product> products() { return products.findAllByShop(ru.sklad.app.util.SecurityUtils.businessShop()); }
     public List<Inventory> history() { return inventories.findAllByOrderByInventoryDateDescIdDesc(); }
+    public List<ru.sklad.app.entity.InventoryDraft> drafts() { return drafts.findAll().stream().sorted(Comparator.comparing(ru.sklad.app.entity.InventoryDraft::getId).reversed()).toList(); }
+    public ru.sklad.app.entity.InventoryDraft draft(Long id) { return drafts.findById(id).orElseThrow(() -> new IllegalArgumentException("Черновик не найден")); }
+    @Transactional
+    public Long saveDraft(Long id, LocalDate date, String employee, List<ru.sklad.app.util.InventoryData.Item> items) {
+        if(date==null || employee==null || employee.isBlank() || employee.length()>255) throw new IllegalArgumentException("Укажите дату и проводящего");
+        var draft = id==null ? new ru.sklad.app.entity.InventoryDraft() : draft(id);
+        draft.setDate(date); draft.setEmployeeName(employee.trim()); draft.setItemsData(ru.sklad.app.util.InventoryData.encode(items)); drafts.saveAndFlush(draft); return draft.getId();
+    }
+    @Transactional
+    public void deleteDraft(Long id) { drafts.delete(draft(id)); }
     public static BigDecimal stock(Product product) {
         return product.getStockQuantity() == null ? BigDecimal.ZERO : product.getStockQuantity();
     }
@@ -46,11 +57,16 @@ public class InventoryService {
                 throw new IllegalArgumentException("Остаток товара «" + product.getName() + "» изменился. Обновите страницу и повторите сверку");
             updates.put(product, value);
         }
+        var snapshot = updates.entrySet().stream().map(entry -> {
+            Product p = entry.getKey();
+            return new ru.sklad.app.util.InventoryData.Item(p.getId(), p.getName(), stock(p), entry.getValue(), Objects.requireNonNullElse(p.getPurchasePrice(), BigDecimal.ZERO), Objects.requireNonNullElse(p.getRetailPrice(), BigDecimal.ZERO));
+        }).toList();
         updates.forEach((product, quantity) -> product.setStockQuantity(quantity));
         products.saveAll(updates.keySet());
         Inventory inventory = new Inventory();
         inventory.setInventoryDate(date.atTime(LocalTime.now().withNano(0)));
         inventory.setEmployeeName(employee.trim()); inventory.setNotes(notes == null ? "" : notes.trim());
+        inventory.setItemsData(ru.sklad.app.util.InventoryData.encode(snapshot));
         inventories.saveAndFlush(inventory);
         audit.safeLogAction("СОЗДАНИЕ", "Инвентаризация", "#" + inventory.getId(), "Проводил: " + employee + "; Фактические остатки (ID → количество): " + actual + "; Учетные: " + expected);
         return updates.size();

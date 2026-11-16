@@ -71,7 +71,7 @@ public class NotesView extends VerticalLayout {
         Paragraph content = new Paragraph(note.getContent()); content.addClassName("note-content");
         card.add(heading, date);
         if ("ДОЛГ".equals(note.getNoteType())) {
-            Span badge = new Span(NoteService.debtAmount(note.getContent()).orElse("Долг — сумма не указана"));
+            Span badge = new Span(note.getDebtAmount() == null ? "Долг — сумма не указана" : "Сумма долга: " + note.getDebtAmount().stripTrailingZeros().toPlainString() + " ₽");
             badge.addClassName("note-debt-badge"); card.add(badge, content);
             if (!note.isResolved()) {
                 Button resolve = new Button("Закрыть долг", e -> {
@@ -106,15 +106,27 @@ public class NotesView extends VerticalLayout {
             title.setValue(java.util.Objects.toString(note.getTitle(), ""));
             content.setValue(java.util.Objects.toString(note.getContent(), ""));
         }
-        content.setHelperText("Для долга укажите сумму с валютой, например: 5000 руб.");
+        NumberField amount = new NumberField("Сумма долга");
+        amount.setMin(0); amount.setStep(0.01);
+        amount.setErrorMessage("Введите неотрицательную сумму с точностью до двух знаков");
+        amount.setWidthFull();
+        if (note != null && note.getDebtAmount() != null) amount.setValue(note.getDebtAmount().doubleValue());
+        amount.setVisible("ДОЛГ".equals(type.getValue()));
+        type.addValueChangeListener(event -> amount.setVisible("ДОЛГ".equals(event.getValue())));
         type.setWidthFull(); title.setWidthFull(); content.setWidthFull();
-        VerticalLayout form = new VerticalLayout(type, title, content); form.setPadding(false); dialog.add(form);
+        VerticalLayout form = new VerticalLayout(type, title, amount, content); form.setPadding(false); dialog.add(form);
         Button save = new Button("Сохранить", e -> {
             title.setInvalid(title.isEmpty() || title.getValue().isBlank());
             content.setInvalid(content.isEmpty() || content.getValue().isBlank());
+            Double value = amount.getValue();
+            if (amount.isVisible() && (amount.isInvalid() || (value != null && (!Double.isFinite(value) || value < 0
+                    || java.math.BigDecimal.valueOf(value).stripTrailingZeros().scale() > 2)))) {
+                amount.setInvalid(true); return;
+            }
+            java.math.BigDecimal debtAmount = amount.isVisible() && value != null ? java.math.BigDecimal.valueOf(value) : null;
             try {
-                if (note == null) service.create(type.getValue(), title.getValue(), content.getValue());
-                else service.update(note.getId(), type.getValue(), title.getValue(), content.getValue());
+                if (note == null) service.create(type.getValue(), title.getValue(), content.getValue(), debtAmount);
+                else service.update(note.getId(), type.getValue(), title.getValue(), content.getValue(), debtAmount);
                 dialog.close(); refresh(); Notification.show("Заметка сохранена");
             }
             catch (IllegalArgumentException exception) { Notification.show(exception.getMessage()); }

@@ -37,7 +37,7 @@ public class EmployeeService {
         employee.setFullName(fullName.trim());
         employee.setRole(role);
         employee.setBaseSalary(rate);
-        employee.setPhone(phone);
+        employee.setPhone(ru.sklad.app.util.PhoneFields.format(phone));
         Employee saved = employees.save(employee);
         audit.safeLogAction("СОЗДАНИЕ", "Сотрудник", saved.getFullName() + " (#" + saved.getId() + ")", "Должность: " + role + "; Ставка: " + saved.getBaseSalary());
         return saved;
@@ -64,7 +64,7 @@ public class EmployeeService {
                 + "; Телефон: " + Objects.toString(employee.getPhone(), "") + " → " + Objects.toString(phone, "");
         // Update the existing row in place; WorkShift references and IDs remain intact.
         employee.setFullName(fullName.trim()); employee.setRole(role);
-        employee.setBaseSalary(rate); employee.setPhone(phone);
+        employee.setBaseSalary(rate); employee.setPhone(ru.sklad.app.util.PhoneFields.format(phone));
         Employee saved = employees.save(employee);
         audit.safeLogAction("ИЗМЕНЕНИЕ", "Сотрудник", saved.getFullName() + " (#" + saved.getId() + ")", details);
         return saved;
@@ -123,6 +123,20 @@ public class EmployeeService {
         }
     }
 
+    @Transactional
+    public void generateSchedule(Set<Long> employeeIds, String pattern) {
+        if(employeeIds==null || employeeIds.isEmpty() || !Set.of("5/2","2/2").contains(Objects.toString(pattern,""))) throw new IllegalArgumentException("Выберите сотрудников и график");
+        YearMonth month=YearMonth.now(); Map<Long,Set<Integer>> result=new LinkedHashMap<>();
+        for(Long id:employeeIds) {
+            Set<Integer> days=new HashSet<>();
+            for(int day=1;day<=month.lengthOfMonth();day++) {
+                boolean work="5/2".equals(pattern) ? month.atDay(day).getDayOfWeek().getValue()<=5 : (day-1)%4<2;
+                if(work) days.add(day);
+            }
+            result.put(id,days);
+        }
+        saveMonth(month,result);
+    }
     public static BigDecimal calculatePay(Employee employee, Set<Integer> workedDays) {
         BigDecimal rate = employee.getBaseSalary() == null ? BigDecimal.ZERO : employee.getBaseSalary();
         return rate.multiply(BigDecimal.valueOf(workedDays.size())).setScale(2, RoundingMode.HALF_UP);

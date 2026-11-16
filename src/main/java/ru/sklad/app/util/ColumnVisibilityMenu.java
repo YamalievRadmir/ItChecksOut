@@ -8,7 +8,8 @@ import com.vaadin.flow.component.icon.VaadinIcon;
 public final class ColumnVisibilityMenu {
     private ColumnVisibilityMenu() {}
 
-    public static Button create(Grid<?> grid) {
+    public static Button create(Grid<?> grid) { return create(grid, java.util.Set.of()); }
+    public static Button create(Grid<?> grid, java.util.Set<String> restricted) {
         Button button = new Button(VaadinIcon.COG.create());
         button.setAriaLabel("Настройка видимости колонок");
         button.setTooltipText("Настроить колонки");
@@ -16,6 +17,7 @@ public final class ColumnVisibilityMenu {
         menu.setOpenOnClick(true);
         for (Grid.Column<?> column : grid.getColumns()) {
             String key = column.getKey();
+            if (restricted.contains(key)) continue;
             if (key == null) throw new IllegalArgumentException("У колонки должен быть key");
             var item = menu.addItem(column.getHeaderText(), event ->
                     grid.getColumnByKey(key).setVisible(event.getSource().isChecked()));

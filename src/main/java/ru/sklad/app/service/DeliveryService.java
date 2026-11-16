@@ -44,7 +44,7 @@ public class DeliveryService {
     }
     @Transactional
     public Customer createCustomer(String name, String address, String phone) {
-        String normalized = normalizePhone(phone);
+        String normalized = normalizePhone(ru.sklad.app.util.PhoneFields.format(phone));
         validateCustomer(name, address, normalized);
         if (customers.findByPhone(normalized).isPresent()) throw new IllegalArgumentException("Заказчик с таким телефоном уже существует");
         Customer customer = new Customer();
@@ -124,13 +124,17 @@ public class DeliveryService {
         }
         List<DeliveryItem> items = new ArrayList<>();
         BigDecimal total = BigDecimal.ZERO;
-        for (var line : quantities.entrySet()) {
+        for (var line : new TreeMap<>(quantities).entrySet()) {
             BigDecimal quantity = line.getValue();
             if (quantity == null || quantity.signum() <= 0 || quantity.compareTo(new BigDecimal("99999999.99")) > 0
                     || quantity.stripTrailingZeros().scale() > 2) throw new IllegalArgumentException("Укажите положительное количество с точностью до двух знаков");
-            Product product = products.findById(line.getKey()).orElseThrow(() -> new IllegalArgumentException("Товар больше не существует"));
+            Product product = products.findLockedById(line.getKey()).orElseThrow(() -> new IllegalArgumentException("Товар больше не существует"));
             if (product.getRetailPrice() == null || product.getRetailPrice().signum() < 0)
                 throw new IllegalArgumentException("Проверьте розничную цену товара: " + product.getName());
+            BigDecimal stock = product.getStockQuantity() == null ? BigDecimal.ZERO : product.getStockQuantity();
+            BigDecimal reserved = products.reservedExcept(product.getId(), id);
+            if (quantity.compareTo(stock.subtract(reserved)) > 0)
+                throw new IllegalArgumentException("Недостаточно свободного товара: " + product.getName());
             DeliveryItem item = new DeliveryItem();
             item.setDelivery(delivery); item.setProduct(product); item.setQuantity(quantity);
             items.add(item);

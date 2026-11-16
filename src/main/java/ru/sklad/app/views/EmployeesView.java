@@ -63,11 +63,11 @@ public class EmployeesView extends VerticalLayout {
         employees.addColumn(Employee::getPhone).setHeader("Телефон");
         GridColumns.configure(employees, "ФИО", "Должность");
         employees.setItems(service.employees());
-        employees.setWidthFull(); employees.setHeight("65vh");
+        employees.setWidthFull(); GridColumns.updateGridHeight(employees);
         employees.addItemDoubleClickListener(event -> openEmployeeDialog(event.getItem()));
         Button addEmployee = new Button("Добавить сотрудника", event -> openEmployeeDialog(null));
         addEmployee.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-        VerticalLayout employeeTab = new VerticalLayout(addEmployee, employees);
+        VerticalLayout employeeTab = new VerticalLayout(new HorizontalLayout(addEmployee, new Button("Автозаполнение графика", event -> scheduleDialog())), employees);
         employeeTab.setSizeFull();
         employeeTab.setPadding(false);
         employeeTab.addClassNames("compact-tab-body", "app-card");
@@ -125,6 +125,18 @@ public class EmployeesView extends VerticalLayout {
         loadMonth(false);
     }
 
+    private void scheduleDialog() {
+        Dialog dialog=new Dialog(); dialog.setHeaderTitle("Автозаполнение графика");
+        var selected=new com.vaadin.flow.component.combobox.MultiSelectComboBox<Employee>("Сотрудники");
+        selected.setItems(service.employees()); selected.setItemLabelGenerator(Employee::getFullName); selected.setWidthFull();
+        ComboBox<String> pattern=new ComboBox<>("График"); pattern.setItems("5/2","2/2"); pattern.setValue("5/2");
+        dialog.add(new VerticalLayout(selected,pattern,new Span("Текущий календарный месяц. 5/2: понедельник–пятница; 2/2: две смены с первого числа, затем два выходных. Смены выбранных сотрудников за месяц будут заменены.")));
+        dialog.getFooter().add(new Button("Отмена",e -> dialog.close()),new Button("Сгенерировать",e -> {
+            try { service.generateSchedule(selected.getSelectedItems().stream().map(Employee::getId).collect(java.util.stream.Collectors.toSet()),pattern.getValue());
+                YearMonth current=YearMonth.now(); month.setValue(current.getMonth()); year.setValue((double)current.getYear()); loadMonth(false); dialog.close(); Notification.show("График сохранен");
+            } catch(IllegalArgumentException ex) { Notification.show(ex.getMessage()); }
+        })); dialog.open();
+    }
     private void loadMonth(boolean preserveDraft) {
         Double selectedYear = year.getValue();
         if (month.getValue() == null || year.isInvalid() || selectedYear == null
@@ -146,7 +158,7 @@ public class EmployeesView extends VerticalLayout {
         displayedStaff = List.copyOf(staff);
         staff.forEach(employee -> draft.put(employee.getId(),
                 new HashSet<>(days.getOrDefault(employee.getId(), Set.of()))));
-        timesheet.removeAllColumns();
+        timesheet.removeAllColumns(); GridColumns.addIndex(timesheet);
         timesheet.addColumn(Employee::getFullName).setHeader("ФИО")
                 .setWidth("240px").setFlexGrow(0).setFrozen(true);
         for (int day = 1; day <= loadedMonth.lengthOfMonth(); day++) {
@@ -205,7 +217,7 @@ public class EmployeesView extends VerticalLayout {
     }
 
     private void updateGrid() {
-        employees.setItems(service.employees());
+        employees.setItems(service.employees()); GridColumns.updateGridHeight(employees);
         loadMonth(true);
     }
 

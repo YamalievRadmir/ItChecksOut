@@ -52,6 +52,7 @@ public class ReportsView extends VerticalLayout {
         configureDailyTables(reports);
         VerticalLayout indicators = new VerticalLayout(new H3("Текущая стоимость склада"));
         VerticalLayout graphs = new VerticalLayout();
+        boolean[] graphsSelected = {false};
         VerticalLayout leaders = new VerticalLayout(new H3("Топ-10 товаров по сумме до скидок"));
         for (VerticalLayout section : List.of(indicators, graphs, leaders)) {
             section.setPadding(false); section.setSpacing(false); section.setWidthFull(); section.addClassNames("report-section", "app-card");
@@ -68,7 +69,13 @@ public class ReportsView extends VerticalLayout {
         cards.getStyle().set("flex-wrap", "wrap");
         cards.getStyle().set("flex-shrink", "0");
         indicators.add(cards, new Span("Карточки выручки — за выбранный период, после скидок"));
-        DatePicker from = new DatePicker("С", LocalDate.now().minusDays(29));
+        var currentMonth=java.time.YearMonth.now();
+        var monthlyDays=reports.dailySales(currentMonth.atDay(1),currentMonth.atEndOfMonth());
+        VerticalLayout monthly=new VerticalLayout(new H3("Итоги месяца"),
+            new Span("Выручка: " + money(monthlyDays.stream().map(ReportsService.DaySales::revenue).reduce(BigDecimal.ZERO,BigDecimal::add))));
+        if(RoleAccess.isAdmin()) monthly.add(new Span("Чистая прибыль: " + money(monthlyDays.stream().map(ReportsService.DaySales::profit).reduce(BigDecimal.ZERO,BigDecimal::add))));
+        monthly.addClassNames("custom-card","app-card"); indicators.add(monthly);
+        DatePicker from = new DatePicker("С", LocalDate.now().withDayOfMonth(1));
         DatePicker to = new DatePicker("По", LocalDate.now());
         from.setMax(LocalDate.of(9999, 12, 31));
         to.setMax(LocalDate.of(9999, 12, 31));
@@ -91,6 +98,7 @@ public class ReportsView extends VerticalLayout {
             return bar;
         }).setHeader("Доля суммы до скидок");
         Runnable refresh = () -> {
+            graphs.removeAll();
             if (from.isInvalid() || to.isInvalid() || from.getValue() == null || to.getValue() == null
                     || from.getValue().isAfter(to.getValue())) {
                 displayedSales = List.of();
@@ -102,6 +110,7 @@ public class ReportsView extends VerticalLayout {
                 status.setText("Укажите корректный период: дата «С» должна быть не позже даты «По»");
                 return;
             }
+            if (graphsSelected[0]) createGraphs(graphs, reports, from.getValue(), to.getValue());
             var result = reports.sales(from.getValue(), to.getValue());
             dailyGrid.setItems(reports.dailySales(from.getValue(), to.getValue()));
             if (selectedDay != null && !selectedDay.isBefore(from.getValue()) && !selectedDay.isAfter(to.getValue())) {
@@ -143,34 +152,42 @@ public class ReportsView extends VerticalLayout {
         extras.add("Показатели", indicators);
         var chartTab = extras.add("Графики", graphs); extras.add("Топ-10 товаров", leaders);
         extras.addSelectedChangeListener(event -> {
-            if (extras.getSelectedTab() == chartTab && graphs.getComponentCount() == 0) createGraphs(graphs, reports);
+            graphsSelected[0] = extras.getSelectedTab() == chartTab;
+            if (graphsSelected[0] && graphs.getComponentCount() == 0) {
+                if (!from.isInvalid() && !to.isInvalid() && from.getValue() != null && to.getValue() != null && !from.getValue().isAfter(to.getValue()))
+                    createGraphs(graphs, reports, from.getValue(), to.getValue());
+                else graphs.add(new Span("Укажите корректный период"));
+            }
         });
         add(extras);
         refresh.run();
     }
 
-    private void createGraphs(VerticalLayout graphs, ReportsService reports) {
-        var chartData = reports.chartData(LocalDate.now());
-        CategoryData days = new CategoryData(chartData.daily().stream()
-                .map(point -> point.day().format(DateTimeFormatter.ofPattern("dd.MM"))).toArray(String[]::new));
-        Data dailyRevenue = new Data(chartData.daily().stream().map(ReportsService.DayRevenue::revenue).toArray(Number[]::new));
-        SOChart line = cartesian(new LineChart(days, dailyRevenue));
-        var topProducts = chartData.topProducts().stream().filter(item -> item.getRevenue().signum() > 0).toList();
-        CategoryData names = new CategoryData(topProducts.stream().map(ProductSales::getProductName).toArray(String[]::new));
-        Data topRevenue = new Data(topProducts.stream().map(item -> item.getRevenue().setScale(2, RoundingMode.HALF_UP)).toArray(Number[]::new));
+    private void createGraphs(VerticalLayout graphs, ReportsService reports, LocalDate from, LocalDate to) {
+        graphs.removeAll();
+        var data = reports.chartData(from, to);
+        String[] dates = data.daily().stream().map(point -> point.day().format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))).toArray(String[]::new);
+        boolean noSales = data.daily().stream().noneMatch(point -> point.receiptCount() > 0);
+        SOChart revenue = cartesian(new LineChart(new CategoryData(dates),
+                new Data(data.daily().stream().mapToDouble(point -> point.revenue().doubleValue()).toArray())));
+        SOChart counts = cartesian(new BarChart(new CategoryData(dates),
+                new Data(data.daily().stream().mapToDouble(point -> point.receiptCount()).toArray())), "Количество чеков", "Чеки");
+        var top = data.topProducts().stream().filter(item -> item.getRevenue() != null && item.getRevenue().signum() > 0).toList();
         SOChart pie = chart();
-        PieChart pieSeries = new PieChart(names, topRevenue); pieSeries.setName("Выручка"); pie.add(pieSeries);
-        CategoryData categories = new CategoryData(chartData.categories().stream().map(item -> item.getCategory()).toArray(String[]::new));
-        Data categoryRevenue = new Data(chartData.categories().stream().map(item -> item.getRevenue().setScale(2, RoundingMode.HALF_UP)).toArray(Number[]::new));
-        SOChart columns = cartesian(new BarChart(categories, categoryRevenue));
-        Div smallerCharts = new Div(chartCard(pie, "Топ-5 товаров — последние 30 дней", topProducts.isEmpty()),
-                chartCard(columns, "Категории — последние 30 дней", chartData.categories().isEmpty()));
-        smallerCharts.setWidthFull();
-        smallerCharts.getStyle().set("display", "grid")
+        if (!top.isEmpty()) {
+            CategoryData names = new CategoryData(top.stream().map(item -> java.util.Objects.toString(item.getProductName(), "Без названия")).toArray(String[]::new));
+            Data values = new Data(top.stream().mapToDouble(item -> item.getRevenue().doubleValue()).toArray());
+            PieChart series = new PieChart(); series.setItemNames(names); series.setData(values); series.setName("Выручка"); pie.add(series);
+        }
+        var categories = data.categories().stream().filter(item -> item.getRevenue() != null && item.getRevenue().signum() > 0).toList();
+        SOChart category = cartesian(new BarChart(new CategoryData(categories.stream().map(item -> item.getCategory()).toArray(String[]::new)),
+                new Data(categories.stream().mapToDouble(item -> item.getRevenue().doubleValue()).toArray())));
+        Div grid = new Div(chartCard(revenue, "Выручка по дням", noSales), chartCard(counts, "Количество чеков по дням", noSales),
+                chartCard(pie, "Топ-5 товаров", top.isEmpty()), chartCard(category, "Выручка по категориям", categories.isEmpty()));
+        grid.setWidthFull(); grid.getStyle().set("display", "grid")
                 .set("grid-template-columns", "repeat(auto-fit, minmax(min(100%, 400px), 1fr))")
-                .set("gap", "var(--lumo-space-l)").set("flex-shrink", "0");
-        graphs.add(chartCard(line, "Выручка по дням — последние 14 дней", false), smallerCharts,
-                new Span("Графики учитывают скидки; скидка продажи распределяется между товарами пропорционально их сумме."));
+                .set("gap", "16px");
+        graphs.add(grid, new Span("Графики за выбранный период учитывают скидки."));
     }
 
     private void configureDailyTables(ReportsService reports) {
@@ -256,14 +273,17 @@ public class ReportsView extends VerticalLayout {
     }
 
     private SOChart cartesian(XYChart series) {
+        return cartesian(series, "Выручка, руб.", "Выручка");
+    }
+    private SOChart cartesian(XYChart series, String axisName, String seriesName) {
         SOChart chart = chart();
         XAxis x = new XAxis(DataType.CATEGORY);
-        YAxis y = new YAxis(DataType.NUMBER); y.setName("Выручка, руб."); y.setMin(0);
+        YAxis y = new YAxis(DataType.NUMBER); y.setName(axisName); y.setMin(0);
         RectangularCoordinate coordinates = new RectangularCoordinate(x, y);
         coordinates.sizeIncludesLabels();
         Position position = new Position(); position.setLeft(Size.pixels(12)); position.setRight(Size.pixels(20));
         position.setTop(Size.pixels(45)); position.setBottom(Size.pixels(24)); coordinates.setPosition(position);
-        series.setName("Выручка"); series.plotOn(coordinates); chart.add(series);
+        series.setName(seriesName); series.plotOn(coordinates); chart.add(series);
         return chart;
     }
 
@@ -271,8 +291,8 @@ public class ReportsView extends VerticalLayout {
         var heading = new com.vaadin.flow.component.html.H3(title);
         heading.getStyle().set("margin-top", "0");
         Div card = new Div(heading);
-        if (empty) card.add(new Span("За этот период продаж нет"));
-        card.add(chart);
+        if (empty) card.add(new Span("Нет данных"));
+        else card.add(chart);
         card.setWidthFull(); card.addClassName("app-card");
         card.getStyle().set("min-width", "0").set("box-sizing", "border-box").set("flex-shrink", "0");
         return card;

@@ -22,7 +22,6 @@ import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import jakarta.annotation.security.PermitAll;
 import ru.sklad.app.entity.Product;
-import ru.sklad.app.entity.Sale;
 import ru.sklad.app.util.WordExporter;
 import ru.sklad.app.util.ColumnVisibilityMenu;
 import ru.sklad.app.util.DiscountCalculator;
@@ -49,6 +48,7 @@ import java.util.Objects;
 @jakarta.annotation.security.RolesAllowed({"ADMIN", "SELLER"})
 public class SalesView extends VerticalLayout {
     private final ProductRepository repository;
+    private Map<Long, BigDecimal> deliveryReservations = Map.of();
     private final SessionCart sessionCart;
     private final Map<Long, CartItem> cart;
     private final ComboBox<Product> matches = new ComboBox<>();
@@ -62,7 +62,8 @@ public class SalesView extends VerticalLayout {
     private final Checkbox applyDiscount = new Checkbox("Применить скидку");
     private final RadioButtonGroup<String> paymentMethod = new RadioButtonGroup<>();
     private boolean validDiscount = true;
-    private Sale lastSale;
+    private Button printReceipt;
+    private HorizontalLayout receipt;
     private final HeldCartService heldCartService;
     private final PurchaseOrderService purchaseOrders;
     private final ProductAlternativeService alternatives;
@@ -108,10 +109,10 @@ public class SalesView extends VerticalLayout {
         matches.setAriaLabel("Поиск товара по названию");
         matches.setPlaceholder("Выберите товар или введите название...");
         matches.setClearButtonVisible(true);
-        matches.setItemLabelGenerator(ProductSuggestionsDialog::stockLabel);
+        matches.setItemLabelGenerator(this::searchProductLabel);
         matches.getStyle().set("--vaadin-combo-box-overlay-width", "min(600px, calc(100vw - 32px))");
         matches.setRenderer(new com.vaadin.flow.data.renderer.ComponentRenderer<>(product -> {
-            Span label = new Span(ProductSuggestionsDialog.stockLabel(product));
+            Span label = new Span(searchProductLabel(product));
             label.getStyle().set("white-space", "normal").set("overflow-wrap", "anywhere");
             return label;
         }));
@@ -120,6 +121,7 @@ public class SalesView extends VerticalLayout {
         matches.setAutoOpen(true);
         matches.addFocusListener(event -> matches.setOpened(true));
         matches.setItems(query -> {
+            refreshDeliveryReservations();
             String term = query.getFilter().orElse("").trim();
             return repository.findByNameContainingIgnoreCase(term,
                     org.springframework.data.domain.PageRequest.of(query.getPage(), query.getPageSize(),
@@ -169,6 +171,7 @@ public class SalesView extends VerticalLayout {
                     quantity.setInvalid(true);
                     return;
                 }
+                if (!checkReservation(line.product, amount)) { quantity.setValue(line.quantity.doubleValue()); return; }
                 line.valid = true;
                 line.quantity = amount;
                 updateTotal();
@@ -198,13 +201,17 @@ public class SalesView extends VerticalLayout {
         grid.setWidthFull(); grid.setHeight("50px");
         grid.addClassName("sales-grid");
 
-        HorizontalLayout receipt = WordExporter.downloadButton("Распечатать чек (Word)", "receipt.docx",
-                () -> WordExporter.receipt(lastSale));
-        receipt.setVisible(false);
-        Button printReceipt = new Button("Распечатать чек", event -> {
-            if (lastSale != null) getUI().ifPresent(ui -> ui.getPage().open("/print-receipt/" + lastSale.getId(), "_blank"));
+        receipt = WordExporter.downloadButton("Распечатать чек (Word)", "assembly-draft.docx",
+                () -> WordExporter.receipt(printLines()));
+        printReceipt = new Button("Распечатать чек", event -> {
+            try {
+                var request = (com.vaadin.flow.server.VaadinServletRequest) com.vaadin.flow.server.VaadinRequest.getCurrent();
+                String token = ru.sklad.app.util.DraftReceipts.store(request.getHttpServletRequest().getSession(), printLines());
+                getUI().ifPresent(ui -> ui.getPage().open("/print-receipt/draft/" + token, "_blank"));
+            } catch (IllegalArgumentException ex) { Notification.show(ex.getMessage()); }
         });
-        printReceipt.setVisible(false);
+        receipt.setEnabled(!cart.isEmpty());
+        printReceipt.setEnabled(!cart.isEmpty());
         Button conductSale = new Button("Оплатить", event -> {
             if (alternativeDialog != null && alternativeDialog.isOpened()) return;
             if (paymentMethod.getValue() == null) {
@@ -222,11 +229,10 @@ public class SalesView extends VerticalLayout {
             cart.forEach((id, line) -> quantities.put(id, line.quantity));
             cart.forEach((id, line) -> prices.put(id, line.price));
             try {
-                lastSale = salesService.conductSale(quantities, prices,
+                salesService.conductSale(quantities, prices,
                         discountValue.getValue() == null ? BigDecimal.ZERO : BigDecimal.valueOf(discountValue.getValue()),
                         discountType.getValue(), "Наличные".equals(paymentMethod.getValue()) ? "CASH" : "CASHLESS");
-                receipt.setVisible(true);
-                printReceipt.setVisible(true);
+
 
                 clearCurrentCart();
 
@@ -242,7 +248,7 @@ public class SalesView extends VerticalLayout {
                     }
                 }));
                 refreshCart();
-                Notification.show(exception.getMessage());
+                Notification.show(exception.getMessage()).addThemeVariants(com.vaadin.flow.component.notification.NotificationVariant.LUMO_ERROR);
             }
         });
         conductSale.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
@@ -270,7 +276,12 @@ public class SalesView extends VerticalLayout {
         payDock.addClassName("sales-pay-dock");
         Button clear = new Button("Очистить", event -> clearCurrentCart());
 
-        Div checkout = new Div(payDock, hold, heldCartsButton, clear, printReceipt, receipt);
+        printReceipt.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        printReceipt.addClassName("sales-print-button");
+        Div primaryActions = new Div(payDock, printReceipt, hold, heldCartsButton, clear);
+        primaryActions.addClassName("sales-primary-actions");
+        receipt.addClassName("sales-word-print");
+        Div checkout = new Div(primaryActions, receipt);
         checkout.addClassName("sales-checkout");
         Div amounts = new Div(subtotalText, discountText, total);
         amounts.addClassNames("custom-card", "sales-amounts");
@@ -309,6 +320,35 @@ public class SalesView extends VerticalLayout {
         heldCartsButton.setText("Отложенные чеки" + (count > 0 ? " (" + count + ")" : ""));
     }
 
+    private void refreshDeliveryReservations() {
+        var today = java.time.LocalDate.now();
+        Map<Long, BigDecimal> quantities = new java.util.HashMap<>();
+        repository.deliveryReservations(today, today.plusDays(1))
+                .forEach(row -> quantities.put(row.getProductId(), row.getQuantity()));
+        deliveryReservations = Map.copyOf(quantities);
+    }
+    private String searchProductLabel(Product product) {
+        String label = ProductSuggestionsDialog.stockLabel(product);
+        if (product == null) return label;
+        BigDecimal quantity = deliveryReservations.getOrDefault(product.getId(), BigDecimal.ZERO);
+        return quantity.signum() > 0 ? label + " (На доставку: "
+                + quantity.stripTrailingZeros().toPlainString().replace('.', ',') + ")" : label;
+    }
+    private BigDecimal reserved(Long id) {
+        var today = java.time.LocalDate.now();
+        return repository.reservedForDelivery(id, today, today.plusDays(1));
+    }
+    private boolean checkReservation(Product product, BigDecimal wanted) {
+        Product current = repository.findById(product.getId()).orElse(product);
+        BigDecimal held = reserved(product.getId());
+        BigDecimal free = ru.sklad.app.service.InventoryService.stock(current).subtract(held).max(BigDecimal.ZERO);
+        if (held.signum() > 0 && wanted.compareTo(free) > 0) {
+            Notification.show("Товар забронирован под доставку. Свободный остаток: " + free.stripTrailingZeros().toPlainString(), 6000, Notification.Position.MIDDLE)
+                .addThemeVariants(com.vaadin.flow.component.notification.NotificationVariant.LUMO_ERROR);
+            return false;
+        }
+        return true;
+    }
     private void handleShortages(InsufficientStockException exception, ProductRepository repository) {
         exception.getShortages().forEach(shortage -> Notification.show(shortage.message(), 6000,
                 Notification.Position.MIDDLE).addThemeVariants(com.vaadin.flow.component.notification.NotificationVariant.LUMO_ERROR));
@@ -498,9 +538,14 @@ public class SalesView extends VerticalLayout {
         content.setFlexGrow(0, catalog); dialog.add(content);
         Button done = new Button("Готово", VaadinIcon.CHECK.create(), event -> dialog.close());
         done.setId("sales-catalog-done"); done.addClassName("sales-catalog-done");
-        done.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_LARGE); done.setWidthFull();
+        done.addThemeVariants(ButtonVariant.LUMO_PRIMARY); done.setWidth("150px");
         done.setAriaLabel("Готово, закрыть выбор товаров");
-        VerticalLayout footer = new VerticalLayout(selectionCount, done);
+        Button cancel = new Button("Закрыть", event -> dialog.close());
+        cancel.setWidth("150px");
+        HorizontalLayout actions = new HorizontalLayout(cancel, done);
+        actions.setWidthFull(); actions.setJustifyContentMode(com.vaadin.flow.component.orderedlayout.FlexComponent.JustifyContentMode.END);
+        actions.setAlignItems(Alignment.CENTER); actions.setPadding(false);
+        VerticalLayout footer = new VerticalLayout(selectionCount, actions);
         footer.setPadding(false); footer.setSpacing(false); footer.setWidthFull(); footer.addClassName("sales-catalog-footer");
         dialog.getFooter().add(footer); refresh.run(); updateSelection.run();
         return dialog;
@@ -534,6 +579,9 @@ public class SalesView extends VerticalLayout {
             Notification.show("У товара не указана корректная розничная цена"); return false;
         }
         BigDecimal stock = ru.sklad.app.service.InventoryService.stock(product);
+        BigDecimal wanted = cart.containsKey(product.getId()) ? cart.get(product.getId()).quantity.add(BigDecimal.ONE) : BigDecimal.ONE.min(stock.max(BigDecimal.ZERO));
+        if (!checkReservation(product, wanted)) return false;
+        stock = stock.subtract(reserved(product.getId())).max(BigDecimal.ZERO);
         java.util.Map<Long, BigDecimal> quantities = new java.util.LinkedHashMap<>();
         cart.forEach((id, line) -> quantities.put(id, line.quantity));
         if (stock.signum() <= 0) {
@@ -590,12 +638,20 @@ public class SalesView extends VerticalLayout {
         refreshCart();
     }
 
+    private java.util.List<ru.sklad.app.util.DraftReceipts.Line> printLines() {
+        if (cart.isEmpty()) throw new IllegalArgumentException("Корзина пуста");
+        if (cart.values().stream().anyMatch(line -> !line.valid)) throw new IllegalArgumentException("Проверьте количество товаров в корзине");
+        return cart.values().stream().map(line -> new ru.sklad.app.util.DraftReceipts.Line(
+            line.product.getName(), line.product.getUnit(), line.quantity, line.price)).toList();
+    }
     private void refreshCart() {
         grid.setItems(new ArrayList<>(cart.values()));
         updateTotal();
     }
 
     private void updateTotal() {
+        if (printReceipt != null) printReceipt.setEnabled(!cart.isEmpty());
+        if (receipt != null) receipt.setEnabled(!cart.isEmpty());
         GridColumns.updateGridHeight(grid);
         sessionCart.settings(discountValue.getValue() == null ? 0 : discountValue.getValue(),
                 discountType.getValue(), applyDiscount.getValue(), paymentMethod.getValue());

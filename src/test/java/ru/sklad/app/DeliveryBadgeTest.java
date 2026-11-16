@@ -16,6 +16,17 @@ import static org.junit.jupiter.api.Assertions.*;
 @org.junit.jupiter.api.extension.ExtendWith(ru.sklad.app.TestShopContext.class)
 @Import({ru.sklad.app.util.SecurityUtils.class, DeliveryService.class})
 class DeliveryBadgeTest {
+    @Autowired jakarta.persistence.EntityManager entityManager;
+    @Test void deliveryTimeSurvivesReloadAndEdit() {
+        Customer c = new Customer(); c.setName("Time test"); c.setAddress("Address"); c.setPhone("89123456789");
+        c = customers.saveAndFlush(c);
+        Delivery d = delivery(c, LocalDate.now(), "New");
+        d.setDeliveryTime(LocalTime.of(14, 37)); deliveries.saveAndFlush(d);
+        Long id = d.getId(); entityManager.clear();
+        d = deliveries.findById(id).orElseThrow(); assertEquals(LocalTime.of(14,37),d.getDeliveryTime());
+        d.setDeliveryTime(LocalTime.of(18, 15)); deliveries.saveAndFlush(d); entityManager.clear();
+        assertEquals(LocalTime.of(18,15),deliveries.findById(id).orElseThrow().getDeliveryTime());
+    }
     @Autowired DeliveryRepository deliveries;
     @Autowired CustomerRepository customers;
     @Autowired DeliveryService service;

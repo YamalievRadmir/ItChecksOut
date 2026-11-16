@@ -593,3 +593,10 @@ vaadin-grid.dynamic-height-grid,
 .deliveries-view .compact-tab-body { height: auto !important; flex: 0 0 auto; overflow: visible; }
 .deliveries-view .app-toolbar { flex-shrink: 0; }
 .sales-history-view > .app-table-card { height: auto !important; flex: 0 0 auto; }
+
+/* Keep checkout actions together and the Word export on a separate row. */
+.sales-primary-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; width: 100%; }
+.sales-primary-actions > vaadin-button { flex: 0 0 auto; margin: 0; }
+.sales-checkout > .sales-word-print { flex: 0 0 100%; width: 100%; }
+.sales-primary-actions .sales-print-button { background: #2563eb; color: white; }
+.sales-catalog-done { min-height: var(--lumo-size-m); font-size: var(--lumo-font-size-m); flex-shrink: 0; }

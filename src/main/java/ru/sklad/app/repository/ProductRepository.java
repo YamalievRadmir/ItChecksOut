@@ -24,6 +24,20 @@ public interface ProductRepository extends ShopRepositoryBase<Product, Long> {
     List<Product> findTop2ByShopAndNameIgnoreCaseOrderByIdAsc(ru.sklad.app.entity.Shop shop, String name);
     default List<Product> findTop2ByNameIgnoreCaseOrderByIdAsc(String name) { return findTop2ByShopAndNameIgnoreCaseOrderByIdAsc(ru.sklad.app.util.SecurityUtils.currentShop(), name); }
 
+    @Query("select coalesce(sum(i.quantity), 0) from DeliveryItem i where i.delivery.shop = :#{T(ru.sklad.app.util.SecurityUtils).currentShop()} and i.product.id = :productId and i.delivery.status = 'Новая' ")
+    java.math.BigDecimal reservedForDelivery(@Param("productId") Long productId);
+    default java.math.BigDecimal reservedForDelivery(Long productId, java.time.LocalDate today, java.time.LocalDate tomorrow) { return reservedForDelivery(productId); }
+
+    @Query("select coalesce(sum(i.quantity), 0) from DeliveryItem i where i.delivery.shop = :#{T(ru.sklad.app.util.SecurityUtils).currentShop()} and i.product.id = :productId and i.delivery.status = 'Новая' and (:excludedId is null or i.delivery.id <> :excludedId)")
+    java.math.BigDecimal reservedExcept(@Param("productId") Long productId, @Param("excludedId") Long excludedId);
+    interface DeliveryReservation {
+        Long getProductId();
+        java.math.BigDecimal getQuantity();
+    }
+    @Query("select i.product.id as productId, sum(i.quantity) as quantity from DeliveryItem i where i.delivery.shop = :#{T(ru.sklad.app.util.SecurityUtils).currentShop()} and i.delivery.status = 'Новая'  group by i.product.id")
+    List<DeliveryReservation> deliveryReservations();
+    default List<DeliveryReservation> deliveryReservations(java.time.LocalDate today, java.time.LocalDate tomorrow) { return deliveryReservations(); }
+
     interface InventoryTotals {
         java.math.BigDecimal getPurchaseTotal();
         java.math.BigDecimal getRetailTotal();
@@ -52,13 +66,15 @@ public interface ProductRepository extends ShopRepositoryBase<Product, Long> {
     default Optional<Product> findByBarcode(String barcode) { return findByShopAndBarcode(ru.sklad.app.util.SecurityUtils.currentShop(), barcode); }
 
     @org.springframework.security.access.prepost.PreAuthorize("#p0 != null and #p0.id == T(ru.sklad.app.util.SecurityUtils).currentShop()?.id")
+    @Query("select p from Product p where p.shop = :#{T(ru.sklad.app.util.SecurityUtils).currentShop()} and (lower(p.name) like lower(concat('%', :name, '%')) or lower(p.barcode) like lower(concat('%', :name, '%')) or lower(p.category) like lower(concat('%', :name, '%')) or lower(p.animalType) like lower(concat('%', :name, '%')))")
     List<Product> findByShopAndNameContainingIgnoreCase(ru.sklad.app.entity.Shop shop, String name);
     default List<Product> findByNameContainingIgnoreCase(String name) { return findByShopAndNameContainingIgnoreCase(ru.sklad.app.util.SecurityUtils.currentShop(), name); }
     @org.springframework.security.access.prepost.PreAuthorize("#p0 != null and #p0.id == T(ru.sklad.app.util.SecurityUtils).currentShop()?.id")
+    @Query("select p from Product p where p.shop = :#{T(ru.sklad.app.util.SecurityUtils).currentShop()} and (lower(p.name) like lower(concat('%', :name, '%')) or lower(p.barcode) like lower(concat('%', :name, '%')) or lower(p.category) like lower(concat('%', :name, '%')) or lower(p.animalType) like lower(concat('%', :name, '%')))")
     List<Product> findByShopAndNameContainingIgnoreCase(ru.sklad.app.entity.Shop shop, String name, org.springframework.data.domain.Pageable pageable);
     default List<Product> findByNameContainingIgnoreCase(String name, org.springframework.data.domain.Pageable pageable) { return findByShopAndNameContainingIgnoreCase(ru.sklad.app.util.SecurityUtils.currentShop(), name, pageable); }
 
-    @Query("select p from Product p where p.shop = :#{T(ru.sklad.app.util.SecurityUtils).currentShop()} and (lower(p.name) like lower(concat('%', :name, '%')) or lower(p.category) like lower(concat('%', :category, '%')))")
+    @Query("select p from Product p where p.shop = :#{T(ru.sklad.app.util.SecurityUtils).currentShop()} and (lower(p.name) like lower(concat('%', :name, '%')) or lower(p.category) like lower(concat('%', :category, '%')) or lower(p.barcode) like lower(concat('%', :name, '%')) or lower(p.animalType) like lower(concat('%', :name, '%')))")
     @org.springframework.security.access.prepost.PreAuthorize("#p0 != null and #p0.id == T(ru.sklad.app.util.SecurityUtils).currentShop()?.id")
     List<Product> findByShopAndNameContainingIgnoreCaseOrCategoryContainingIgnoreCase(ru.sklad.app.entity.Shop shop, String name, String category);
     default List<Product> findByNameContainingIgnoreCaseOrCategoryContainingIgnoreCase(String name, String category) { return findByShopAndNameContainingIgnoreCaseOrCategoryContainingIgnoreCase(ru.sklad.app.util.SecurityUtils.currentShop(), name, category); }

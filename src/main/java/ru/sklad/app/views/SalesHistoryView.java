@@ -8,6 +8,7 @@ import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
@@ -42,9 +43,11 @@ public class SalesHistoryView extends VerticalLayout {
     private final Map<Long, Integer> receiptNumbers = new HashMap<>();
     private final SalesService service;
     private boolean updatingDateRange;
+    private final Span cashTotal = new Span();
+    private final Span cashlessTotal = new Span();
     private final Span revenueTotal = new Span();
     private final Span profitTotal = new Span();
-    private final VerticalLayout profitCard = new VerticalLayout();
+    private final Div profitCard = new Div();
 
     public SalesHistoryView(SalesService service, ReceiptService receipts) {
         this.service = service;
@@ -100,16 +103,14 @@ public class SalesHistoryView extends VerticalLayout {
         });
         grid.setWidthFull(); grid.setHeight("50px");
         grid.setMinHeight("0");
-        revenueTotal.addClassName("metric-value"); profitTotal.addClassName("metric-value");
-        Span revenueLabel = new Span("Итого выручка:"); revenueLabel.addClassName("metric-label");
-        Span profitLabel = new Span("Итого прибыль (без закупа):"); profitLabel.addClassName("metric-label");
-        VerticalLayout revenueCard = new VerticalLayout(revenueLabel, revenueTotal);
-        profitCard.add(profitLabel, profitTotal);
-        for (VerticalLayout card : List.of(revenueCard, profitCard)) {
-            card.addClassNames("custom-card", "history-total-card"); card.setSpacing(false);
-        }
+        Div revenueCard = totalCard("Итого выручка", revenueTotal);
+        Span profitLabel = new Span("Итого прибыль (без закупа)"); profitLabel.addClassName("metric-label");
+        profitTotal.addClassName("metric-value"); profitCard.add(profitLabel, profitTotal);
+        styleTotalCard(profitCard);
+        Div cashCard = totalCard("Наличные", cashTotal);
+        Div cashlessCard = totalCard("Безнал", cashlessTotal);
         profitCard.setVisible(false);
-        HorizontalLayout cards = new HorizontalLayout(revenueCard, profitCard);
+        HorizontalLayout cards = new HorizontalLayout(revenueCard, profitCard, cashCard, cashlessCard);
         cards.setWidthFull(); cards.addClassName("history-total-cards");
         VerticalLayout totals = new VerticalLayout(new H3("Итого за период"), cards);
         totals.setPadding(false); totals.setSpacing(false); totals.addClassName("history-totals");
@@ -137,6 +138,7 @@ public class SalesHistoryView extends VerticalLayout {
         if (from.isInvalid() || to.isInvalid()
                 || (from.getValue() != null && to.getValue() != null && from.getValue().isAfter(to.getValue()))) {
             history = List.of();
+            cashTotal.setText("—"); cashlessTotal.setText("—");
             receiptNumbers.clear();
             grid.setItems(history);
             GridColumns.updateGridHeight(grid);
@@ -146,6 +148,8 @@ public class SalesHistoryView extends VerticalLayout {
         }
         var summary = service.historyWithTotals(from.getValue(), to.getValue());
         history = summary.sales();
+        cashTotal.setText(money(history.stream().filter(sale -> !"CASHLESS".equals(sale.getPaymentMethod())).map(Sale::getFinalSum).reduce(BigDecimal.ZERO, BigDecimal::add)));
+        cashlessTotal.setText(money(history.stream().filter(sale -> "CASHLESS".equals(sale.getPaymentMethod())).map(Sale::getFinalSum).reduce(BigDecimal.ZERO, BigDecimal::add)));
         revenueTotal.setText(money(summary.revenue()));
         profitCard.setVisible(summary.profit() != null);
         profitTotal.setText(summary.profit() == null ? "—" : money(summary.profit()));
@@ -171,6 +175,16 @@ public class SalesHistoryView extends VerticalLayout {
         status.setText(items.isEmpty() ? "Продажи не найдены" : "Продаж: " + items.size());
     }
 
+    private static Div totalCard(String title, Span value) {
+        Span label = new Span(title); label.addClassName("metric-label");
+        value.addClassName("metric-value");
+        Div card = new Div(label, value); styleTotalCard(card); return card;
+    }
+    private static void styleTotalCard(Div card) {
+        card.addClassNames("custom-card", "history-total-card");
+        card.getStyle().set("display", "flex").set("flex-direction", "column")
+                .set("gap", "4px").set("flex", "1 1 180px").set("min-width", "0");
+    }
     private static String money(BigDecimal value) {
         return NumberFormat.getCurrencyInstance(Locale.forLanguageTag("ru-RU")).format(value);
     }

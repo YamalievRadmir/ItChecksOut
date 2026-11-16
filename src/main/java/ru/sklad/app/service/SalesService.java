@@ -116,6 +116,11 @@ public class SalesService {
                         + ". Корзина обновлена, проверьте итог и проведите продажу повторно.");
             }
             BigDecimal stock = product.getStockQuantity() == null ? BigDecimal.ZERO : product.getStockQuantity();
+            LocalDate today = LocalDate.now();
+            BigDecimal reserved = repository.reservedForDelivery(id, today, today.plusDays(1));
+            BigDecimal available = stock.subtract(reserved).max(BigDecimal.ZERO);
+            if (reserved.signum() > 0 && quantity.compareTo(available) > 0)
+                throw new IllegalArgumentException("Товар забронирован под доставку. Свободный остаток: " + available.stripTrailingZeros().toPlainString());
             if (stock.compareTo(quantity) < 0) {
                 shortages.add(new InsufficientStockException.Shortage(product.getId(), product.getName(), stock, quantity.subtract(stock)));
             }
