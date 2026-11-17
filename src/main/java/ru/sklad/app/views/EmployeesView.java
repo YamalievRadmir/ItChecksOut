@@ -59,15 +59,16 @@ public class EmployeesView extends VerticalLayout {
 
         employees.addColumn(Employee::getFullName).setHeader("ФИО").setFlexGrow(2);
         employees.addColumn(Employee::getRole).setHeader("Должность");
-        employees.addColumn(Employee::getBaseSalary).setHeader("Ставка за смену");
+        if (ru.sklad.app.util.RoleAccess.isAdmin()) employees.addColumn(Employee::getBaseSalary).setHeader("Ставка за смену");
         employees.addColumn(Employee::getPhone).setHeader("Телефон");
         GridColumns.configure(employees, "ФИО", "Должность");
         employees.setItems(service.employees());
         employees.setWidthFull(); GridColumns.updateGridHeight(employees);
-        employees.addItemDoubleClickListener(event -> openEmployeeDialog(event.getItem()));
+        if (ru.sklad.app.util.RoleAccess.isAdmin()) employees.addItemDoubleClickListener(event -> openEmployeeDialog(event.getItem()));
         Button addEmployee = new Button("Добавить сотрудника", event -> openEmployeeDialog(null));
         addEmployee.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         VerticalLayout employeeTab = new VerticalLayout(new HorizontalLayout(addEmployee, new Button("Автозаполнение графика", event -> scheduleDialog())), employees);
+        if (!ru.sklad.app.util.RoleAccess.isAdmin()) { add(employees); return; }
         employeeTab.setSizeFull();
         employeeTab.setPadding(false);
         employeeTab.addClassNames("compact-tab-body", "app-card");

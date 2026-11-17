@@ -21,6 +21,7 @@ public class PermissionConfiguration {
                 routes.remove(""); routes.add("inventory"); seller.setAllowedViews(String.join(",", routes));
                 seller.setInventoryAccessInitialized(true); repository.save(seller);
             }
+            for (var settings : repository.findAll()) { settings.migrateAccessLevels(); repository.save(settings); }
         };
     }
 }

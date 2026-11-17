@@ -200,7 +200,10 @@ public class ReportsView extends VerticalLayout {
             dailyGrid.addComponentColumn(day -> profit(day.profit())).setHeader("Сумма прибыли").setKey("profit");
             dailyGrid.addColumn(day -> money(day.purchase())).setHeader("Сумма закупа").setKey("purchase");
         }
-        GridColumns.configure(dailyGrid); dailyGrid.setWidthFull(); dailyGrid.setHeight("320px");
+        dailyGrid.addColumn(day -> money(day.cash())).setHeader("Наличные").setKey("cash");
+        dailyGrid.addColumn(day -> money(day.cashless())).setHeader("Безнал").setKey("cashless");
+        GridColumns.configure(dailyGrid);
+        dailyGrid.getColumnByKey("rowIndex").setAutoWidth(false).setWidth("90px").setFlexGrow(0); dailyGrid.setWidthFull(); dailyGrid.setHeight("320px");
         dailyGrid.getColumns().forEach(column -> column.setTextAlign(ColumnTextAlign.END));
         dailyGrid.getColumnByKey("date").setTextAlign(ColumnTextAlign.START).setFlexGrow(1);
         dailyGrid.addItemDoubleClickListener(event -> {
@@ -227,7 +230,14 @@ public class ReportsView extends VerticalLayout {
             productGrid.addColumn(item -> money(item.purchasePrice())).setHeader("Цена закупа").setKey("purchasePrice");
             productGrid.addComponentColumn(item -> profit(item.profit())).setHeader("Прибыль").setKey("profit");
         }
-        GridColumns.configure(productGrid, "Наименование товара"); productGrid.setWidthFull(); productGrid.setHeight("320px");
+        productGrid.addColumn(item -> money(item.cash())).setHeader("Нал").setKey("cash");
+        productGrid.addColumn(item -> money(item.cashless())).setHeader("Безнал").setKey("cashless");
+        GridColumns.configure(productGrid, "Наименование товара");
+        productGrid.getColumnByKey("rowIndex").setAutoWidth(false).setWidth("90px").setFlexGrow(0);
+        for (Grid<?> table : java.util.List.of(dailyGrid, productGrid)) {
+            table.getColumnByKey("rowIndex").setResizable(false);
+            table.getColumnByKey("rowIndex").getElement().getStyle().set("min-width", "90px");
+        } productGrid.setWidthFull(); productGrid.setHeight("320px");
         productGrid.getColumns().forEach(column -> column.setTextAlign(ColumnTextAlign.END));
         productGrid.getColumnByKey("name").setTextAlign(ColumnTextAlign.START);
         HorizontalLayout productToolbar = new HorizontalLayout(new Span("Цены — средние за единицу. Суммы продаж учитывают скидки."),

@@ -50,7 +50,7 @@ public class ImpersonationService {
   String page=java.util.Objects.toString(session().getAttribute(ORIGINAL_PAGE),"/");
   install(UsernamePasswordAuthenticationToken.authenticated(user,null,user.getAuthorities()));
   session().removeAttribute(ORIGINAL_USER); session().removeAttribute(ORIGINAL_PAGE);
-  UI.getCurrent().getPage().setLocation(page);
+  UI.getCurrent().getPage().setLocation("/");
  }
  private void install(Authentication auth) {
   var context=SecurityContextHolder.createEmptyContext(); context.setAuthentication(auth);

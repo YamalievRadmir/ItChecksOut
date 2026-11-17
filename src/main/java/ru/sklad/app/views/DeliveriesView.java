@@ -50,12 +50,15 @@ public class DeliveriesView extends VerticalLayout {
     private final Grid<Customer> customerGrid = ru.sklad.app.util.GridColumns.compact(new Grid<>(Customer.class, false));
     private final DatePicker selectedDate = new DatePicker("Дата доставки", LocalDate.now());
 
+    private final ru.sklad.app.service.PermissionService permissions;
     public DeliveriesView(DeliveryService service, CustomerRepository customers, ProductRepository products,
-                          ru.sklad.app.service.ProductAlternativeService suggestions) {
+                          ru.sklad.app.service.ProductAlternativeService suggestions, ru.sklad.app.service.PermissionService permissions) {
+        this.permissions = permissions;
         this.suggestions = suggestions;
         this.service = service; this.customers = customers; this.products = products;
         setSizeFull(); addClassNames("deliveries-view", "compact-page"); getStyle().set("overflow", "auto");
         Button create = new Button("Создать заявку", e -> edit(null));
+        create.setVisible(permissions.canEdit("deliveries"));
         create.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         add(new H3("Доставки"));
         selectedDate.setRequiredIndicatorVisible(true);
@@ -76,6 +79,7 @@ public class DeliveriesView extends VerticalLayout {
         GridColumns.configure(customerGrid, "Имя", "Адрес");
         customerGrid.setWidthFull(); customerGrid.setHeight("50px");
         Button addCustomer = new Button("Добавить заказчика", e -> createCustomer());
+        addCustomer.setVisible(permissions.canEdit("deliveries"));
         addCustomer.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         VerticalLayout customerTab = new VerticalLayout(addCustomer, customerGrid);
         customerTab.addClassNames("compact-tab-body", "app-card"); customerTab.setPadding(false); customerTab.setWidthFull(); customerTab.setFlexGrow(0, customerGrid);
@@ -113,13 +117,13 @@ public class DeliveriesView extends VerticalLayout {
             Button cancel = new Button("Отменить", e -> changeStatus(d.getId(), false));
             cancel.addThemeVariants(ButtonVariant.LUMO_ERROR);
             HorizontalLayout actions = new HorizontalLayout(complete, cancel);
-            actions.getStyle().set("flex-wrap", "wrap"); actions.setVisible("Новая".equals(d.getStatus()));
+            actions.getStyle().set("flex-wrap", "wrap"); actions.setVisible(permissions.canEdit("deliveries") && "Новая".equals(d.getStatus()));
             return actions;
         }).setHeader("Действия").setWidth("330px").setFlexGrow(0);
         GridColumns.configure(grid, "Клиент");
         grid.setWidthFull(); grid.setHeight("50px");
         grid.asSingleSelect().addValueChangeListener(e -> {
-            if (e.isFromClient() && e.getValue() != null) {
+            if (permissions.canEdit("deliveries") && e.isFromClient() && e.getValue() != null) {
                 Long id = e.getValue().getId(); grid.deselectAll(); edit(id);
             }
         });

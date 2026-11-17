@@ -22,6 +22,7 @@ public class SupplierService {
     public List<Supplier> list() { return repository.findAllByOrderByNameAscIdAsc(); }
 
     @Transactional
+    @org.springframework.security.access.prepost.PreAuthorize("@permissionService.canEdit('supplies')")
     public Supplier save(Long id, String name, String phone, String address, String comment) {
         if (name == null || name.isBlank() || name.trim().length() > 255
                 || (phone != null && phone.trim().length() > 255) || (address != null && address.trim().length() > 255))
@@ -40,6 +41,7 @@ public class SupplierService {
     }
 
     @Transactional
+    @org.springframework.security.access.prepost.PreAuthorize("@permissionService.canEdit('supplies')")
     public void delete(Long id) {
         if (id == null) throw new IllegalArgumentException("Выберите поставщика");
         Supplier supplier = repository.findLockedById(id)

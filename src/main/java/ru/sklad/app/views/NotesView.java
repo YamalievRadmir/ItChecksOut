@@ -21,13 +21,15 @@ import java.time.format.DateTimeFormatter;
 @RolesAllowed({"ADMIN", "SELLER"})
 public class NotesView extends VerticalLayout {
     private final NoteService service;
+    private final ru.sklad.app.service.PermissionService permissions;
     private final Div cards = new Div();
     private final Div debts = new Div();
-    public NotesView(NoteService service) {
-        this.service = service;
+    public NotesView(NoteService service, ru.sklad.app.service.PermissionService permissions) {
+        this.permissions = permissions; this.service = service;
         setSizeFull(); addClassName("notes-view"); getStyle().set("overflow", "hidden");
         Button create = new Button("+ Добавить заметку", VaadinIcon.PLUS.create(), event -> openEditor(null, "ИНСТРУКЦИЯ"));
         Button createDebt = new Button("+ Добавить долг", VaadinIcon.PLUS.create(), event -> openEditor(null, "ДОЛГ"));
+        create.setVisible(permissions.canEdit("notes")); createDebt.setVisible(permissions.canEdit("notes"));
         create.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         createDebt.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         VerticalLayout left = column("Заметки и Инструкции", create, cards);
@@ -78,12 +80,14 @@ public class NotesView extends VerticalLayout {
                     try { service.resolveDebt(note.getId()); refresh(); Notification.show("Долг закрыт"); }
                     catch (IllegalArgumentException exception) { Notification.show(exception.getMessage()); }
                 });
+                resolve.setVisible(permissions.canEdit("notes"));
                 card.add(resolve);
             }
         }
         if (!"ДОЛГ".equals(note.getNoteType())) card.add(content);
         if (note.isResolved()) { card.addClassName("note-resolved"); card.add(new Span("Закрыто")); }
         Button edit = new Button("Редактировать", VaadinIcon.EDIT.create(), event -> editNote(note.getId()));
+        edit.setVisible(permissions.canEdit("notes"));
         edit.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
         card.add(edit);
         return card;

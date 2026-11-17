@@ -25,20 +25,21 @@ import java.util.*;
 @RolesAllowed({"ADMIN", "SELLER"})
 public class AnimalsView extends VerticalLayout {
     private final AnimalGuideService service;
+    private final ru.sklad.app.service.PermissionService permissions;
     private final TextField search = new TextField();
     private final TabSheet tabs = new TabSheet();
     private final List<String> species = new ArrayList<>();
     private final List<Div> contents = new ArrayList<>();
 
-    public AnimalsView(AnimalGuideService service) {
-        this.service = service; setSizeFull(); getStyle().set("overflow", "auto");
+    public AnimalsView(AnimalGuideService service, ru.sklad.app.service.PermissionService permissions) {
+        this.permissions = permissions; this.service = service; setSizeFull(); getStyle().set("overflow", "auto");
         search.setPlaceholder("Поиск по всем статьям: вес, понос, витамины...");
         search.setAriaLabel("Поиск по всей базе знаний"); search.setClearButtonVisible(true);
         search.setPrefixComponent(VaadinIcon.SEARCH.create()); search.setWidthFull();
         search.setValueChangeMode(ValueChangeMode.LAZY);
         HorizontalLayout toolbar = new HorizontalLayout(search); toolbar.setWidthFull();
         toolbar.setFlexGrow(1, search); toolbar.setAlignItems(Alignment.CENTER); toolbar.addClassName("app-toolbar");
-        if (RoleAccess.isAdmin()) {
+        if (permissions.canEdit("animals")) {
             Button create = new Button("Добавить статью", VaadinIcon.PLUS.create(), e -> openEditor(null));
             create.addThemeVariants(ButtonVariant.LUMO_PRIMARY); toolbar.add(create);
         }
@@ -66,7 +67,7 @@ public class AnimalsView extends VerticalLayout {
             Span category = new Span(article.getSpecies() + " · " + article.getCategory()); category.addClassName("metric-label");
             Paragraph text = new Paragraph(article.getContent()); text.getStyle().set("white-space", "pre-wrap").set("overflow-wrap", "anywhere");
             VerticalLayout body = new VerticalLayout(category, text); body.setPadding(false);
-            if (RoleAccess.isAdmin()) {
+            if (permissions.canEdit("animals")) {
                 Button edit = new Button("Редактировать", e -> openEditor(article));
                 Button delete = new Button("Удалить", e -> confirmDelete(article)); delete.addThemeVariants(ButtonVariant.LUMO_ERROR);
                 body.add(new HorizontalLayout(edit, delete));
@@ -76,7 +77,7 @@ public class AnimalsView extends VerticalLayout {
         accordion.close(); content.add(accordion);
     }
     private void openEditor(AnimalGuide article) {
-        if (!RoleAccess.isAdmin()) return;
+        if (!permissions.canEdit("animals")) return;
         Dialog dialog = new Dialog(); dialog.setHeaderTitle(article == null ? "Добавить статью" : "Редактировать статью");
         dialog.setWidth("720px"); dialog.setMaxWidth("95vw"); dialog.setCloseOnOutsideClick(false);
         ComboBox<String> kind = new ComboBox<>("Вид животного");
@@ -101,7 +102,7 @@ public class AnimalsView extends VerticalLayout {
         dialog.getFooter().add(new Button("Отмена", e -> dialog.close()), save); dialog.open();
     }
     private void confirmDelete(AnimalGuide article) {
-        if (!RoleAccess.isAdmin()) return;
+        if (!permissions.canEdit("animals")) return;
         ConfirmDialog confirm = new ConfirmDialog(); confirm.setHeader("Удалить статью?"); confirm.setText(article.getTitle());
         confirm.setCancelable(true); confirm.setCancelText("Отмена"); confirm.setConfirmText("Удалить"); confirm.setConfirmButtonTheme("error primary");
         confirm.addConfirmListener(e -> {

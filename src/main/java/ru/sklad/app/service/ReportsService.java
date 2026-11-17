@@ -55,9 +55,9 @@ public class ReportsService {
         public DayRevenue(LocalDate day, BigDecimal revenue) { this(day, revenue, 0); }
     }
     public record DaySales(LocalDate day, BigDecimal quantity, BigDecimal revenue,
-                           BigDecimal profit, BigDecimal purchase) {}
+                           BigDecimal profit, BigDecimal purchase, BigDecimal cash, BigDecimal cashless) {}
     public record DayProduct(Long productId, String name, String unit, BigDecimal quantity,
-                             BigDecimal salePrice, BigDecimal revenue, BigDecimal purchasePrice, BigDecimal profit) {}
+                             BigDecimal salePrice, BigDecimal revenue, BigDecimal purchasePrice, BigDecimal profit, BigDecimal cash, BigDecimal cashless) {}
 
     public List<DaySales> dailySales(LocalDate from, LocalDate to) {
         validatePeriod(from, to);
@@ -67,6 +67,8 @@ public class ReportsService {
                 from.atStartOfDay(), to.plusDays(1).atStartOfDay())) {
             Amounts day = days.computeIfAbsent(sale.getSaleDate().toLocalDate(), ignored -> new Amounts());
             day.revenue = day.revenue.add(sale.getFinalSum());
+            if ("CASH".equals(sale.getPaymentMethod()) || "Наличные".equals(sale.getPaymentMethod())) day.cash = day.cash.add(sale.getFinalSum());
+            if ("CASHLESS".equals(sale.getPaymentMethod()) || "Безнал".equals(sale.getPaymentMethod())) day.cashless = day.cashless.add(sale.getFinalSum());
             for (SaleItem item : sale.getItems()) {
                 day.quantity = day.quantity.add(item.getQuantity());
                 if (admin) day.cost = day.cost.add(cost(item));
@@ -75,7 +77,7 @@ public class ReportsService {
         return days.entrySet().stream().map(entry -> {
             Amounts day = entry.getValue();
             return new DaySales(entry.getKey(), day.quantity, day.revenue,
-                    admin ? day.revenue.subtract(day.cost) : null, admin ? day.cost : null);
+                    admin ? day.revenue.subtract(day.cost) : null, admin ? day.cost : null, day.cash, day.cashless);
         }).toList();
     }
 
@@ -98,6 +100,8 @@ public class ReportsService {
                 ProductKey key = new ProductKey(item.getProduct().getId(), item.getProductName(), item.getUnit());
                 Amounts row = totals.computeIfAbsent(key, ignored -> new Amounts());
                 row.quantity = row.quantity.add(item.getQuantity()); row.revenue = row.revenue.add(revenue);
+                if ("CASH".equals(sale.getPaymentMethod()) || "Наличные".equals(sale.getPaymentMethod())) row.cash = row.cash.add(revenue);
+                if ("CASHLESS".equals(sale.getPaymentMethod()) || "Безнал".equals(sale.getPaymentMethod())) row.cashless = row.cashless.add(revenue);
                 if (admin) row.cost = row.cost.add(cost(item));
             }
         }
@@ -105,14 +109,14 @@ public class ReportsService {
             ProductKey key = entry.getKey(); Amounts row = entry.getValue();
             return new DayProduct(key.id(), key.name(), key.unit(), row.quantity,
                     average(row.revenue, row.quantity), row.revenue, admin ? average(row.cost, row.quantity) : null,
-                    admin ? row.revenue.subtract(row.cost) : null);
+                    admin ? row.revenue.subtract(row.cost) : null, row.cash, row.cashless);
         }).sorted(Comparator.comparing(DayProduct::name, String.CASE_INSENSITIVE_ORDER)
                 .thenComparing(DayProduct::productId)).toList();
     }
 
     private record ProductKey(Long id, String name, String unit) {}
     private static class Amounts {
-        BigDecimal quantity = BigDecimal.ZERO, revenue = BigDecimal.ZERO, cost = BigDecimal.ZERO;
+        BigDecimal quantity = BigDecimal.ZERO, revenue = BigDecimal.ZERO, cost = BigDecimal.ZERO, cash = BigDecimal.ZERO, cashless = BigDecimal.ZERO;
     }
     private static BigDecimal average(BigDecimal amount, BigDecimal quantity) {
         return quantity.signum() == 0 ? BigDecimal.ZERO : amount.divide(quantity, 2, RoundingMode.HALF_UP);

@@ -252,6 +252,7 @@ public class SalesView extends VerticalLayout {
             }
         });
         conductSale.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        conductSale.setVisible(permissions.canEdit("sales"));
         conductSale.addClassName("sales-pay-button");
         Button hold = new Button("Отложить чек", VaadinIcon.PAUSE.create(), event -> {
             if (cart.isEmpty()) { Notification.show("Корзина пуста"); return; }

@@ -135,8 +135,9 @@ public class SuppliesView extends VerticalLayout implements BeforeEnterObserver 
         supplierGrid.addColumn(Supplier::getPhone).setHeader("Телефон").setKey("phone");
         supplierGrid.addColumn(Supplier::getAddress).setHeader("Адрес").setKey("address");
         GridColumns.configure(supplierGrid, "Название", "Адрес"); supplierGrid.setWidthFull(); supplierGrid.setHeight("65vh"); supplierGrid.setMinHeight("0");
-        supplierGrid.addItemDoubleClickListener(event -> openSupplierDialog(event.getItem()));
+        if (permissions.canEdit("supplies")) supplierGrid.addItemDoubleClickListener(event -> openSupplierDialog(event.getItem()));
         Button addSupplier = new Button("Добавить поставщика", event -> openSupplierDialog(null));
+        addSupplier.setVisible(permissions.canEdit("supplies"));
         addSupplier.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         VerticalLayout supplierTab = new VerticalLayout(addSupplier, supplierGrid);
         supplierTab.setPadding(false); supplierTab.setSizeFull(); supplierTab.addClassNames("compact-tab-body", "app-card");

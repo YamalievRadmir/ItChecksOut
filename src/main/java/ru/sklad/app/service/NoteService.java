@@ -29,10 +29,12 @@ public class NoteService {
         return matcher.find() ? Optional.of(matcher.group().trim()) : Optional.empty();
     }
     @Transactional
+    @org.springframework.security.access.prepost.PreAuthorize("@permissionService.canEdit('notes')")
     public Note create(String type, String title, String content) {
         return create(type, title, content, null);
     }
     @Transactional
+    @org.springframework.security.access.prepost.PreAuthorize("@permissionService.canEdit('notes')")
     public Note create(String type, String title, String content, java.math.BigDecimal debtAmount) {
         validate(type, title, content);
         validateAmount(debtAmount);
@@ -56,10 +58,12 @@ public class NoteService {
         return repository.findById(id).orElseThrow(() -> new IllegalArgumentException("Заметка больше не существует"));
     }
     @Transactional
+    @org.springframework.security.access.prepost.PreAuthorize("@permissionService.canEdit('notes')")
     public Note update(Long id, String type, String title, String content) {
         return update(id, type, title, content, get(id).getDebtAmount());
     }
     @Transactional
+    @org.springframework.security.access.prepost.PreAuthorize("@permissionService.canEdit('notes')")
     public Note update(Long id, String type, String title, String content, java.math.BigDecimal debtAmount) {
         validate(type, title, content);
         validateAmount(debtAmount);
@@ -73,6 +77,7 @@ public class NoteService {
         return saved;
     }
     @Transactional
+    @org.springframework.security.access.prepost.PreAuthorize("@permissionService.canEdit('notes')")
     public void delete(Long id) {
         Note note = lock(id);
         audit.safeLogAction("УДАЛЕНИЕ", "Заметка", note.getTitle() + " (#" + id + ")", "Тип: " + note.getNoteType());
@@ -83,6 +88,7 @@ public class NoteService {
         return repository.findLockedById(id).orElseThrow(() -> new IllegalArgumentException("Заметка больше не существует"));
     }
     @Transactional
+    @org.springframework.security.access.prepost.PreAuthorize("@permissionService.canEdit('notes')")
     public void resolveDebt(Long id) {
         Note note = lock(id);
         if (!"ДОЛГ".equals(note.getNoteType())) throw new IllegalArgumentException("Закрывать можно только долги");

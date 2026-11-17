@@ -26,7 +26,7 @@ public class AnimalGuideService {
     }
 
     @Transactional
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionService.canEdit('animals')")
     public AnimalGuide save(Long id, String species, String category, String title, String content) {
         if (species == null || species.isBlank() || species.trim().length() > 255 || category == null || !CATEGORIES.contains(category)
                 || title == null || title.isBlank() || title.trim().length() > 255 || content == null || content.isBlank()) {
@@ -45,7 +45,7 @@ public class AnimalGuideService {
     }
 
     @Transactional
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionService.canEdit('animals')")
     public void delete(Long id) {
         AnimalGuide guide = repository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Статья больше не существует"));

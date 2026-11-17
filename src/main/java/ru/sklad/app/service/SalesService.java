@@ -73,17 +73,20 @@ public class SalesService {
     }
 
     @Transactional
+    @org.springframework.security.access.prepost.PreAuthorize("@permissionService.canEdit('sales')")
     public Sale conductSale(Map<Long, BigDecimal> cart, Map<Long, BigDecimal> displayedPrices) {
         return conductSale(cart, displayedPrices, BigDecimal.ZERO, "%");
     }
 
     @Transactional
+    @org.springframework.security.access.prepost.PreAuthorize("@permissionService.canEdit('sales')")
     public Sale conductSale(Map<Long, BigDecimal> cart, Map<Long, BigDecimal> displayedPrices,
                             BigDecimal discountValue, String discountType) {
         return conductSale(cart, displayedPrices, discountValue, discountType, "CASH");
     }
 
     @Transactional
+    @org.springframework.security.access.prepost.PreAuthorize("@permissionService.canEdit('sales')")
     public Sale conductSale(Map<Long, BigDecimal> cart, Map<Long, BigDecimal> displayedPrices,
                             BigDecimal discountValue, String discountType, String paymentMethod) {
         if (discountValue != null && discountValue.signum() != 0 && !permissions.hasPermission("canGiveDiscount")) {

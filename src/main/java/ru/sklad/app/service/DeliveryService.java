@@ -43,6 +43,7 @@ public class DeliveryService {
             throw new IllegalArgumentException("Укажите имя, адрес и корректный телефон клиента");
     }
     @Transactional
+    @org.springframework.security.access.prepost.PreAuthorize("@permissionService.canEdit('deliveries')")
     public Customer createCustomer(String name, String address, String phone) {
         String normalized = normalizePhone(ru.sklad.app.util.PhoneFields.format(phone));
         validateCustomer(name, address, normalized);
@@ -59,6 +60,7 @@ public class DeliveryService {
         return delivery;
     }
     @Transactional
+    @org.springframework.security.access.prepost.PreAuthorize("@permissionService.canEdit('deliveries')")
     public void complete(Long id) {
         Delivery delivery = lockNew(id);
         if (delivery.getItems().isEmpty()) throw new IllegalArgumentException("В заявке нет товаров");
@@ -80,6 +82,7 @@ public class DeliveryService {
         audit.safeLogAction("ИЗМЕНЕНИЕ", "Доставка", "#" + id, "Статус: Новая → Выполнена; товары списаны: " + quantities);
     }
     @Transactional
+    @org.springframework.security.access.prepost.PreAuthorize("@permissionService.canEdit('deliveries')")
     public void cancel(Long id) {
         Delivery delivery = lockNew(id);
         delivery.setStatus("Отменена"); deliveries.saveAndFlush(delivery);
@@ -99,6 +102,7 @@ public class DeliveryService {
         return phone == null ? "" : phone.replaceAll("\\D", "");
     }
     @Transactional
+    @org.springframework.security.access.prepost.PreAuthorize("@permissionService.canEdit('deliveries')")
     public Delivery save(Long id, Long customerId, String name, String address, String phone,
                          LocalDate date, LocalTime time, String payment, String comment, String status,
                          Map<Long, BigDecimal> quantities) {

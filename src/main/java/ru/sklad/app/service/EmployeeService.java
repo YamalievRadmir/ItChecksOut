@@ -27,10 +27,13 @@ public class EmployeeService {
     }
 
     public List<Employee> employees() {
-        return employees.findAllByOrderByFullNameAscIdAsc();
+        var rows = employees.findAllByOrderByFullNameAscIdAsc();
+        if (ru.sklad.app.util.RoleAccess.isAdmin()) return rows;
+        return rows.stream().map(e -> { Employee copy = new Employee(); copy.setId(e.getId()); copy.setFullName(e.getFullName()); copy.setRole(e.getRole()); copy.setPhone(e.getPhone()); return copy; }).toList();
     }
 
     @Transactional
+    @PreAuthorize("hasRole('ADMIN')")
     public Employee create(String fullName, String role, BigDecimal rate, String phone) {
         rate = validate(fullName, role, rate, phone);
         Employee employee = new Employee();
@@ -53,6 +56,7 @@ public class EmployeeService {
     }
 
     @Transactional
+    @PreAuthorize("hasRole('ADMIN')")
     public Employee update(Long id, String fullName, String role, BigDecimal rate, String phone) {
         rate = validate(fullName, role, rate, phone);
         if (id == null) throw new IllegalArgumentException("Выберите сотрудника");
@@ -71,6 +75,7 @@ public class EmployeeService {
     }
 
     @Transactional
+    @PreAuthorize("hasRole('ADMIN')")
     public void delete(Long id) {
         if (id == null) throw new IllegalArgumentException("Выберите сотрудника");
         Employee employee = employees.findLockedById(id)
@@ -82,6 +87,7 @@ public class EmployeeService {
                 "Удален сотрудник и связанные записи смен: " + removedShifts);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     public Map<Long, Set<Integer>> month(YearMonth month) {
         Map<Long, Set<Integer>> result = new HashMap<>();
         for (WorkShift shift : shifts.findByShiftDateBetween(month.atDay(1), month.atEndOfMonth())) {
@@ -94,6 +100,7 @@ public class EmployeeService {
     }
 
     @Transactional
+    @PreAuthorize("hasRole('ADMIN')")
     public void saveMonth(YearMonth month, Map<Long, Set<Integer>> workedDays) {
         if (month == null || workedDays == null) {
             throw new IllegalArgumentException("Укажите месяц и табель");
@@ -124,6 +131,7 @@ public class EmployeeService {
     }
 
     @Transactional
+    @PreAuthorize("hasRole('ADMIN')")
     public void generateSchedule(Set<Long> employeeIds, String pattern) {
         if(employeeIds==null || employeeIds.isEmpty() || !Set.of("5/2","2/2").contains(Objects.toString(pattern,""))) throw new IllegalArgumentException("Выберите сотрудников и график");
         YearMonth month=YearMonth.now(); Map<Long,Set<Integer>> result=new LinkedHashMap<>();

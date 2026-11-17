@@ -19,7 +19,9 @@ class NotesEditorTest {
             NoteService service=mock(NoteService.class);
             Note note=new Note(); note.setId(7L); note.setTitle("Старый заголовок"); note.setContent("Старый текст"); note.setNoteType("ПРОЧЕЕ");
             when(service.list(null)).thenReturn(List.of(note)); when(service.get(7L)).thenReturn(note);
-            var view=new NotesView(service);
+            var permissions = mock(ru.sklad.app.service.PermissionService.class);
+            when(permissions.canEdit("notes")).thenReturn(true);
+            var view=new NotesView(service, permissions);
             var open=NotesView.class.getDeclaredMethod("editNote",Long.class); open.setAccessible(true);
             Dialog dialog=(Dialog)open.invoke(view,7L);
             TextField title=tree(dialog).filter(TextField.class::isInstance).map(TextField.class::cast).findFirst().orElseThrow();
@@ -30,7 +32,7 @@ class NotesEditorTest {
             dialog.getFooter().getElement().getChildren().flatMap(element -> element.getComponent().stream())
                     .filter(Button.class::isInstance).map(Button.class::cast)
                     .filter(b -> "Сохранить".equals(b.getText())).findFirst().orElseThrow().click();
-            verify(service).update(7L,"ПРОЧЕЕ","Новый заголовок","Новый текст"); verify(service,never()).create(any(),any(),any());
+            verify(service).update(7L,"ПРОЧЕЕ","Новый заголовок","Новый текст",null); verify(service,never()).create(any(),any(),any());
             assertFalse(dialog.isOpened()); verify(service,times(2)).list(null);
         } finally { UI.setCurrent(null); }
     }

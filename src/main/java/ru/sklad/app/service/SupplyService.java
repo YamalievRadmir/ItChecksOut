@@ -51,6 +51,7 @@ public class SupplyService {
         Product product = repository.findLockedById(productId)
                 .orElseThrow(() -> new IllegalArgumentException("Товар больше не существует"));
         BigDecimal previousPrice = product.getPurchasePrice();
+        if (!ru.sklad.app.util.RoleAccess.isAdmin()) offeredPrice = null;
         BigDecimal purchasePrice = offeredPrice != null ? offeredPrice : previousPrice == null ? BigDecimal.ZERO : previousPrice;
         purchasePrice = purchasePrice.setScale(2, RoundingMode.UNNECESSARY);
         if (purchasePrice.signum() < 0 || purchasePrice.compareTo(new BigDecimal("99999999.99")) > 0) {
