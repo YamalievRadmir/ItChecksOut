@@ -53,8 +53,37 @@ public class LoginView extends VerticalLayout implements BeforeEnterObserver {
                 getUI().ifPresent(ui -> ui.getPage().setLocation("/"));
             } catch (Exception ex) { com.vaadin.flow.component.notification.Notification.show("Не удалось открыть демо-магазин"); }
         }));
+        var email = contactLink("mailto:yaradmir2203@gmail.com", "yaradmir2203@gmail.com",
+                com.vaadin.flow.component.icon.VaadinIcon.ENVELOPE);
+        var telegram = contactLink("https://t.me/RadmirYamaliev", "@RadmirYamaliev",
+                com.vaadin.flow.component.icon.VaadinIcon.PAPERPLANE);
+        telegram.setTarget("_blank");
+        telegram.getElement().setAttribute("rel", "noopener noreferrer");
+        var contacts = new VerticalLayout(
+                new com.vaadin.flow.component.html.Span("По вопросам сотрудничества и настройки системы:"),
+                email, telegram);
+        contacts.setPadding(false);
+        contacts.setSpacing(false);
+        contacts.setWidthFull();
+        contacts.setMaxWidth("420px");
+        contacts.setAlignItems(Alignment.CENTER);
+        contacts.getStyle().set("font-size", "14px")
+                .set("color", "var(--lumo-secondary-text-color)")
+                .set("text-align", "center").set("gap", "8px").set("margin-top", "12px");
+        add(contacts);
     }
 
+    private static com.vaadin.flow.component.html.Anchor contactLink(String href, String text,
+            com.vaadin.flow.component.icon.VaadinIcon symbol) {
+        var icon = symbol.create();
+        icon.setSize("16px");
+        icon.getElement().setAttribute("aria-hidden", "true");
+        var link = new com.vaadin.flow.component.html.Anchor(href, "");
+        link.add(icon, new com.vaadin.flow.component.html.Span(text));
+        link.getStyle().set("display", "inline-flex").set("align-items", "center")
+                .set("gap", "6px").set("color", "inherit");
+        return link;
+    }
     @Override
     public void beforeEnter(BeforeEnterEvent event) {
         event.getUI().getPage().executeJs("document.documentElement.setAttribute('theme', 'corporate')");

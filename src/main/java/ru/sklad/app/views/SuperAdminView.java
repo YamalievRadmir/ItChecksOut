@@ -38,6 +38,13 @@ public class SuperAdminView extends VerticalLayout {
         shopGrid.addColumn(Shop::getName).setHeader("Название").setFlexGrow(2).setSortable(true);
         shopGrid.addColumn(shop -> shop.isActive() ? "Активен" : "Неактивен").setHeader("Статус");
         shopGrid.addColumn(shop -> userCounts.getOrDefault(shop.getId(), 0L)).setHeader("Количество пользователей");
+        shopGrid.addComponentColumn(shop -> {
+            TextField url = new TextField();
+            url.setValue("https://sklad.kormaufa.ru/api/public/catalog/" + shop.getId());
+            url.setReadOnly(true); url.setWidth("420px");
+            url.setAriaLabel("Публичный API каталога: " + shop.getName());
+            return url;
+        }).setHeader("API каталога").setAutoWidth(true);
         Button create = new Button("+ Создать магазин", event -> createShop());
         create.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         VerticalLayout shopTab = panel(); shopTab.add(create, shopGrid); shopTab.setFlexGrow(0, shopGrid);

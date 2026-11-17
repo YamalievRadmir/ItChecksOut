@@ -23,6 +23,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(requestUtil::isFrameworkInternalRequest).permitAll()
                 .requestMatchers("/login", "/VAADIN/**", "/frontend/**", "/images/**", "/favicon.ico", "/favicon.png").permitAll()
+                .requestMatchers("/api/public/**").permitAll()
                 .anyRequest().authenticated())
             .formLogin(form -> form.loginPage("/login").defaultSuccessUrl("/", true).permitAll())
             .logout(logout -> logout.logoutSuccessUrl("/login").permitAll());

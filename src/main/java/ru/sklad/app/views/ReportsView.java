@@ -103,7 +103,7 @@ public class ReportsView extends VerticalLayout {
                     || from.getValue().isAfter(to.getValue())) {
                 displayedSales = List.of();
                 grid.setItems(displayedSales);
-                dailyGrid.setItems(List.of()); productGrid.setItems(List.of()); selectedDay = null;
+                setDailyItems(List.of()); setProductItems(List.of()); selectedDay = null;
                 dayDetails.setOpened(false); dayDetails.setSummaryText("Детализация по дню"); dayStatus.setVisible(false);
                 cashValue.setText("—");
                 cashlessValue.setText("—");
@@ -112,11 +112,11 @@ public class ReportsView extends VerticalLayout {
             }
             if (graphsSelected[0]) createGraphs(graphs, reports, from.getValue(), to.getValue());
             var result = reports.sales(from.getValue(), to.getValue());
-            dailyGrid.setItems(reports.dailySales(from.getValue(), to.getValue()));
+            setDailyItems(reports.dailySales(from.getValue(), to.getValue()));
             if (selectedDay != null && !selectedDay.isBefore(from.getValue()) && !selectedDay.isAfter(to.getValue())) {
                 showDay(reports, selectedDay, false);
             } else {
-                selectedDay = null; productGrid.setItems(List.of()); dayDetails.setOpened(false);
+                selectedDay = null; setProductItems(List.of()); dayDetails.setOpened(false);
                 dayDetails.setSummaryText("Детализация по дню"); dayStatus.setVisible(false);
             }
             revenue[0] = result.revenue();
@@ -249,13 +249,52 @@ public class ReportsView extends VerticalLayout {
         productBody.setPadding(false); productBody.setWidthFull(); productBody.addClassNames("report-table-body", "app-card");
         dayDetails.setId("report-day-detail");
         dayDetails.setSummaryText("Детализация по дню"); dayDetails.add(productBody); dayDetails.setOpened(false); dayDetails.setWidthFull();
+        dailyGrid.appendFooterRow(); productGrid.appendFooterRow();
+        setDailyItems(List.of()); setProductItems(List.of());
         add(dailyDetails, dayDetails);
     }
 
+    private void setDailyItems(List<ReportsService.DaySales> items) {
+        dailyGrid.setItems(items);
+        totalLabel(dailyGrid, "date", "ИТОГО ЗА ПЕРИОД:");
+        total(dailyGrid, "quantity", items, ReportsService.DaySales::quantity, false);
+        total(dailyGrid, "revenue", items, ReportsService.DaySales::revenue, true);
+        total(dailyGrid, "profit", items, ReportsService.DaySales::profit, true);
+        total(dailyGrid, "purchase", items, ReportsService.DaySales::purchase, true);
+        total(dailyGrid, "cash", items, ReportsService.DaySales::cash, true);
+        total(dailyGrid, "cashless", items, ReportsService.DaySales::cashless, true);
+    }
+
+    private void setProductItems(List<ReportsService.DayProduct> items) {
+        productGrid.setItems(items);
+        totalLabel(productGrid, "name", "ИТОГО ЗА ДЕНЬ:");
+        total(productGrid, "quantity", items, ReportsService.DayProduct::quantity, false);
+        total(productGrid, "revenue", items, ReportsService.DayProduct::revenue, true);
+        total(productGrid, "profit", items, ReportsService.DayProduct::profit, true);
+        total(productGrid, "cash", items, ReportsService.DayProduct::cash, true);
+        total(productGrid, "cashless", items, ReportsService.DayProduct::cashless, true);
+    }
+
+    private static void totalLabel(Grid<?> grid, String key, String text) {
+        Span label = new Span(text);
+        label.getStyle().set("font-weight", "700").set("font-size", "var(--lumo-font-size-m)").set("white-space", "normal");
+        grid.getFooterRows().get(0).getCell(grid.getColumnByKey(key)).setComponent(label);
+    }
+
+    private <T> void total(Grid<T> grid, String key, List<T> items,
+                           java.util.function.Function<T, BigDecimal> value, boolean currency) {
+        var column = grid.getColumnByKey(key);
+        if (column == null) return;
+        BigDecimal sum = items.stream().map(value).filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        Span result = new Span(currency ? money(sum) : number(sum));
+        result.getStyle().set("font-weight", "700").set("display", "block").set("text-align", "right");
+        grid.getFooterRows().get(0).getCell(column).setComponent(result);
+    }
     private void showDay(ReportsService reports, LocalDate date, boolean open) {
         selectedDay = date;
         var items = reports.dayProducts(date);
-        productGrid.setItems(items);
+        setProductItems(items);
         dayStatus.setText(items.isEmpty() ? "За этот день продаж не найдено" : "Товаров: " + items.size());
         dayStatus.setVisible(true);
         dayDetails.setSummaryText("Детализация за " + date.format(DateTimeFormatter.ofPattern("dd.MM.yyyy")));
