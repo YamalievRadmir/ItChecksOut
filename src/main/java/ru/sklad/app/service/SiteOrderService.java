@@ -35,12 +35,24 @@ public class SiteOrderService {
             if (item.quantity() == null || item.quantity().signum() <= 0 || item.quantity().stripTrailingZeros().scale() > 2
                     || item.quantity().compareTo(new BigDecimal("99999999.99")) > 0) throw new IllegalArgumentException("Invalid quantity");
         }
+        if (order.requestId() != null) {
+            var existing = deliveries.findByWebsiteRequestId(order.requestId());
+            if (existing.isPresent()) return existing.get();
+        }
+        LocalDate tomorrow = LocalDate.now().plusDays(1);
+        LocalDate deliveryDate = order.deliveryDate() == null ? tomorrow : order.deliveryDate();
+        if (deliveryDate.isBefore(tomorrow) || deliveryDate.getYear() > 9999) {
+            throw new IllegalArgumentException("Delivery date must be tomorrow or later");
+        }
+        LocalTime deliveryTime = order.deliveryTime() == null ? LocalTime.of(9, 0) : order.deliveryTime();
         Customer customer = customers.findByPhone(phone).orElseGet(() -> {
             Customer c = new Customer(); c.setName(order.customerName().trim());
             c.setPhone(phone); c.setAddress(order.address().trim()); return customers.saveAndFlush(c);
         });
         Delivery delivery = new Delivery(); delivery.setCustomer(customer);
-        delivery.setDeliveryDate(LocalDate.now().plusDays(1)); delivery.setDeliveryTime(LocalTime.of(9, 0));
+        delivery.setWebsiteRequestId(order.requestId());
+        delivery.setDeliveryDate(deliveryDate);
+        delivery.setDeliveryTime(deliveryTime);
         delivery.setStatus("Новая"); delivery.setPaymentMethod("Нал");
         StringBuilder comment = new StringBuilder("Заказ с agro-korma-shop.ru\nИмя: ").append(order.customerName().trim())
                 .append("\nАдрес доставки: ").append(order.address().trim());

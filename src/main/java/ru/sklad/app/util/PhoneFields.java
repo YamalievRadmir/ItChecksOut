@@ -9,6 +9,11 @@ public final class PhoneFields {
   if(d.length()!=10) throw new IllegalArgumentException("Введите 10 цифр телефона");
   return "8 ("+d.substring(0,3)+") "+d.substring(3,6)+"-"+d.substring(6,8)+"-"+d.substring(8);
  }
+ /** Display legacy values without letting one malformed phone break a whole Grid response. */
+ public static String display(String value) {
+  try { return format(value); }
+  catch (IllegalArgumentException ex) { return value == null ? "" : value; }
+ }
  public static void configure(TextField field) {
   field.setPlaceholder("8 (999) 123-45-67");
   field.addValueChangeListener(e -> { try { String v=format(e.getValue()); if(!v.equals(e.getValue())) field.setValue(v); field.setInvalid(false); } catch(IllegalArgumentException ex) { field.setInvalid(true); field.setErrorMessage(ex.getMessage()); } });

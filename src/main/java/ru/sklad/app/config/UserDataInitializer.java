@@ -68,18 +68,6 @@ public class UserDataInitializer implements CommandLineRunner {
                 user.setShop(shop); users.save(user);
             }
         });
-        // TEMPORARY local diagnostics: reset test credentials on every startup.
-        {
-            for (String name : java.util.List.of("admin", "super_admin")) {
-                User user = users.findByUsername(name).orElseGet(User::new);
-                user.setUsername(name);
-                user.setPassword(encoder.encode(name.equals("admin") ? "admin123" : "super123"));
-                user.setRole(name.equals("admin") ? "ADMIN" : "SUPER_ADMIN");
-                user.setEnabled(true);
-                user.setShop(name.equals("admin") ? shop : null);
-                users.save(user);
-            }
-        }
         for (String role : java.util.List.of("admin", "seller", "super_admin")) {
             if (users.existsByUsername(role)) continue;
             String password = environment.getProperty("app.bootstrap." + role.replace('_', '-') + "-password");

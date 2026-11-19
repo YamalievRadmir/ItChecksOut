@@ -161,7 +161,20 @@ public class MainLayout extends AppLayout {
         website.getStyle().set("margin-top", "var(--lumo-space-m)");
         navigation.addItem(website);
         addToDrawer(navigation);
-        addAttachListener(event -> refreshDeliveryBadge());
+        addAttachListener(event -> {
+            refreshDeliveryBadge();
+            if (!permissions.canAccess("deliveries")) return;
+            var ui = event.getUI();
+            int previous = ui.getPollInterval();
+            int interval = previous > 0 ? Math.min(previous, 15_000) : 15_000;
+            ui.setPollInterval(interval);
+            var poll = ui.addPollListener(ignored -> refreshDeliveryBadge());
+            addDetachListener(detach -> {
+                poll.remove();
+                if (ui.getPollInterval() == interval) ui.setPollInterval(previous);
+                detach.unregisterListener();
+            });
+        });
     }
 
     @Override
@@ -176,9 +189,9 @@ public class MainLayout extends AppLayout {
             deliveryBadge.setVisible(false);
             return;
         }
-        long count = deliveries.countNewToday();
+        long count = deliveries.countOpen();
         deliveryBadge.setText(Long.toString(count));
-        deliveryBadge.getElement().setAttribute("aria-label", "Новых доставок на сегодня: " + count);
+        deliveryBadge.getElement().setAttribute("aria-label", "Новых доставок: " + count);
         deliveryBadge.setVisible(count > 0);
     }
 

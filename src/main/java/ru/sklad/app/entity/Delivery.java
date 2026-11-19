@@ -15,6 +15,8 @@ import java.util.List;
 public class Delivery extends ShopOwned {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    @Column(unique = true)
+    private java.util.UUID websiteRequestId;
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     private Customer customer;
     @Column(nullable = false)

@@ -8,4 +8,8 @@ class PhoneFormattingTest {
  }
  @Test void rejectsIncompleteNumbers() { assertThrows(IllegalArgumentException.class, () -> PhoneFields.format("12345")); }
  @Test void permitsEmptyOptionalPhone() { assertEquals("",PhoneFields.format(null)); }
-}
+ @Test void displayPreservesMalformedLegacyPhone() {
+  assertEquals("12345", PhoneFields.display("12345"));
+  assertEquals("", PhoneFields.display(null));
+  assertEquals("8 (912) 345-67-89", PhoneFields.display("+7 912 345 67 89"));
+ }}

@@ -10,6 +10,14 @@ public interface DeliveryRepository extends ShopRepositoryBase<Delivery, Long> {
     @org.springframework.security.access.prepost.PreAuthorize("#p0 != null and #p0.id == T(ru.sklad.app.util.SecurityUtils).currentShop()?.id")
     long countByShopAndDeliveryDateAndStatus(ru.sklad.app.entity.Shop shop, java.time.LocalDate date, String status);
     default long countByDeliveryDateAndStatus(java.time.LocalDate date, String status) { return countByShopAndDeliveryDateAndStatus(ru.sklad.app.util.SecurityUtils.currentShop(), date, status); }
+    @org.springframework.data.jpa.repository.Query("select count(d) from Delivery d where d.shop = :#{T(ru.sklad.app.util.SecurityUtils).currentShop()} and d.status = 'Новая'")
+    long countOpen();
+    @EntityGraph(attributePaths = "customer")
+    @org.springframework.data.jpa.repository.Query("select d from Delivery d where d.shop = :#{T(ru.sklad.app.util.SecurityUtils).currentShop()} "
+            + "and d.status = 'Новая' order by d.deliveryDate, d.deliveryTime, d.id")
+    List<Delivery> findOpen();
+    @org.springframework.data.jpa.repository.Query("select d from Delivery d where d.shop = :#{T(ru.sklad.app.util.SecurityUtils).currentShop()} and d.websiteRequestId = :id")
+    Optional<Delivery> findByWebsiteRequestId(@org.springframework.data.repository.query.Param("id") java.util.UUID id);
     @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     @org.springframework.data.jpa.repository.Query("select d from Delivery d where d.shop = :#{T(ru.sklad.app.util.SecurityUtils).currentShop()} and d.id = :id")
     @org.springframework.security.access.prepost.PreAuthorize("#p0 != null and #p0.id == T(ru.sklad.app.util.SecurityUtils).currentShop()?.id")

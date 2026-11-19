@@ -18,6 +18,12 @@ public class DeliveryService {
     public long countNewToday() {
         return deliveries.countByDeliveryDateAndStatus(LocalDate.now(), "Новая");
     }
+    public long countOpen() {
+        return deliveries.countOpen();
+    }
+    public List<Delivery> listOpen() {
+        return deliveries.findOpen();
+    }
     private final DeliveryRepository deliveries;
     private final CustomerRepository customers;
     private final ProductRepository products;

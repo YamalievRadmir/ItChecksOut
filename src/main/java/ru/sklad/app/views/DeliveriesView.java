@@ -25,6 +25,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import ru.sklad.app.entity.*;
 import ru.sklad.app.repository.*;
+import ru.sklad.app.service.CallbackRequestService;
 import ru.sklad.app.service.DeliveryService;
 
 import java.math.BigDecimal;
@@ -33,6 +34,7 @@ import java.text.NumberFormat;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.Duration;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
@@ -47,13 +49,25 @@ public class DeliveriesView extends VerticalLayout {
     private final Grid<Delivery> grid = ru.sklad.app.util.GridColumns.compact(new Grid<>(Delivery.class, false));
     private final Grid<Delivery> pastGrid = ru.sklad.app.util.GridColumns.compact(new Grid<>(Delivery.class, false));
     private final Span currentBadge = new Span();
+    private final Span callbackBadge = new Span();
+    private final Grid<CallbackRequest> callbackGrid = GridColumns.compact(new Grid<>(CallbackRequest.class, false));
+    private final Grid<CallbackRequest> allCallbackGrid = GridColumns.compact(new Grid<>(CallbackRequest.class, false));
+    private final Grid<Delivery> allDeliveryGrid = GridColumns.compact(new Grid<>(Delivery.class, false));
+    private final Span noCallbacks = new Span("Нет заявок на звонок.");
+    private final Span noAllCallbacks = new Span("Нет заявок на звонок.");
+    private final Span noOpenDeliveries = new Span("Нет актуальных доставок.");
+    private List<UUID> pendingCallbackIds;
+    private List<DeliveryRow> openDeliveryRows;
     private final Grid<Customer> customerGrid = ru.sklad.app.util.GridColumns.compact(new Grid<>(Customer.class, false));
     private final DatePicker selectedDate = new DatePicker("Дата доставки", LocalDate.now());
 
     private final ru.sklad.app.service.PermissionService permissions;
+    private final CallbackRequestService callbacks;
     public DeliveriesView(DeliveryService service, CustomerRepository customers, ProductRepository products,
-                          ru.sklad.app.service.ProductAlternativeService suggestions, ru.sklad.app.service.PermissionService permissions) {
+                          ru.sklad.app.service.ProductAlternativeService suggestions, ru.sklad.app.service.PermissionService permissions,
+                          CallbackRequestService callbacks) {
         this.permissions = permissions;
+        this.callbacks = callbacks;
         this.suggestions = suggestions;
         this.service = service; this.customers = customers; this.products = products;
         setSizeFull(); addClassNames("deliveries-view", "compact-page"); getStyle().set("overflow", "auto");
@@ -74,7 +88,7 @@ public class DeliveriesView extends VerticalLayout {
         VerticalLayout requests = new VerticalLayout(filters, grid);
         requests.addClassNames("compact-tab-body", "app-card"); requests.setPadding(false); requests.setWidthFull(); requests.setFlexGrow(0, grid);
         customerGrid.addColumn(Customer::getName).setHeader("Имя");
-        customerGrid.addColumn(c -> ru.sklad.app.util.PhoneFields.format(c.getPhone())).setHeader("Телефон");
+        customerGrid.addColumn(c -> ru.sklad.app.util.PhoneFields.display(c.getPhone())).setHeader("Телефон");
         customerGrid.addColumn(Customer::getAddress).setHeader("Адрес").setFlexGrow(2);
         GridColumns.configure(customerGrid, "Имя", "Адрес");
         customerGrid.setWidthFull(); customerGrid.setHeight("50px");
@@ -87,17 +101,106 @@ public class DeliveriesView extends VerticalLayout {
         currentBadge.getElement().getThemeList().add("badge"); currentBadge.getElement().getThemeList().add("error");
         currentBadge.getStyle().set("background", "#b91c1c").set("color", "white").set("margin-left", "8px");
         var currentTab = new com.vaadin.flow.component.tabs.Tab(new Span("Актуальные"), currentBadge);
+        configureDeliveryGrid(allDeliveryGrid);
+        configureCallbacks(allCallbackGrid);
+        var allPanel = new VerticalLayout(new H3("Актуальные доставки"), noOpenDeliveries, allDeliveryGrid,
+                new H3("Заявки на звонок"), noAllCallbacks, allCallbackGrid);
+        allPanel.addClassNames("compact-tab-body", "app-card");
+        allPanel.setPadding(false);
+        allPanel.setWidthFull();
+        var allTab = tabs.add("Все заявки", allPanel);
         tabs.add(currentTab, requests);
         tabs.add("Прошлые", ru.sklad.app.util.AppCards.table(pastGrid));
         tabs.add("Заказчики", customerTab);
-        tabs.setSelectedTab(currentTab); tabs.setWidthFull(); tabs.addClassName("compact-tabs");
-        add(tabs); setFlexGrow(0, tabs); refresh(); refreshCustomers();
+        configureCallbacks(callbackGrid);
+        callbackBadge.getStyle().set("display", "inline-flex").set("align-items", "center").set("justify-content", "center")
+                .set("min-width", "1.6em").set("height", "1.6em").set("padding", "0 0.25em")
+                .set("border-radius", "999px").set("margin-left", "8px").set("background", "#b91c1c").set("color", "white");
+        var callbackTab = new com.vaadin.flow.component.tabs.Tab(new Span("Заявка на звонок"), callbackBadge);
+        var callbackPanel = new VerticalLayout(noCallbacks, callbackGrid);
+        callbackPanel.addClassNames("compact-tab-body", "app-card");
+        callbackPanel.setPadding(false);
+        tabs.add(callbackTab, callbackPanel);
+        tabs.addSelectedChangeListener(event -> {
+            if (event.getSelectedTab() == callbackTab) refreshCallbacks();
+            if (event.getSelectedTab() == allTab) {
+                refreshOpenDeliveries();
+                refreshCallbacks();
+            }
+        });
+        tabs.setSelectedTab(allTab); tabs.setWidthFull(); tabs.addClassName("compact-tabs");
+        add(tabs); setFlexGrow(0, tabs); refresh(); refreshCustomers(); refreshCallbacks();
+        addAttachListener(event -> {
+            var ui = event.getUI();
+            var poll = ui.addPollListener(pollEvent -> {
+                refreshCallbacks();
+                if (tabs.getSelectedTab() == allTab) refreshOpenDeliveries();
+            });
+            addDetachListener(detach -> {
+                poll.remove();
+                detach.unregisterListener();
+            });
+        });
+    }
+
+    private void configureCallbacks(Grid<CallbackRequest> callbackGrid) {
+        var dateTime = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm").withZone(ZoneId.systemDefault());
+        callbackGrid.addColumn(request -> dateTime.format(request.getCreatedAt())).setHeader("Поступила");
+        callbackGrid.addColumn(CallbackRequest::getCustomerName).setHeader("Имя");
+        callbackGrid.addComponentColumn(request -> {
+            var details = new Span(Objects.toString(request.getOrderDetails(), ""));
+            details.getStyle().set("white-space", "pre-wrap");
+            return details;
+        }).setHeader("Товары и комментарий").setFlexGrow(2);
+        callbackGrid.addComponentColumn(request -> new com.vaadin.flow.component.html.Anchor(
+                "tel:+" + request.getPhone(), ru.sklad.app.util.PhoneFields.display(request.getPhone()))).setHeader("Телефон");
+        if (permissions.canEdit("deliveries")) {
+            callbackGrid.addComponentColumn(request -> new Button("Звонок выполнен", event -> {
+                callbacks.complete(request.getId());
+                refreshCallbacks();
+            })).setHeader("Действия");
+        }
+        GridColumns.configure(callbackGrid, "Имя");
+        callbackGrid.setWidthFull();
+        callbackGrid.setHeight("50px");
+    }
+
+    private void refreshCallbacks() {
+        var pending = callbacks.pending();
+        var ids = pending.stream().map(CallbackRequest::getId).toList();
+        if (ids.equals(pendingCallbackIds)) return;
+        pendingCallbackIds = ids;
+        callbackGrid.setItems(pending);
+        allCallbackGrid.setItems(pending);
+        callbackGrid.setVisible(!pending.isEmpty());
+        allCallbackGrid.setVisible(!pending.isEmpty());
+        noCallbacks.setVisible(pending.isEmpty());
+        noAllCallbacks.setVisible(pending.isEmpty());
+        callbackBadge.setText(Integer.toString(pending.size()));
+        callbackBadge.setVisible(!pending.isEmpty());
+        callbackBadge.getElement().setAttribute("aria-label", "Необработанных заявок на звонок: " + pending.size());
+        GridColumns.updateGridHeight(callbackGrid);
+        GridColumns.updateGridHeight(allCallbackGrid);
+    }
+
+    private record DeliveryRow(Long id, LocalDate date, LocalTime time, String name, String phone, BigDecimal total) {}
+
+    private void refreshOpenDeliveries() {
+        var open = service.listOpen();
+        var rows = open.stream().map(d -> new DeliveryRow(d.getId(), d.getDeliveryDate(), d.getDeliveryTime(),
+                d.getCustomer().getName(), d.getCustomer().getPhone(), d.getTotalSum())).toList();
+        if (rows.equals(openDeliveryRows)) return;
+        openDeliveryRows = rows;
+        allDeliveryGrid.setItems(open);
+        allDeliveryGrid.setVisible(!open.isEmpty());
+        noOpenDeliveries.setVisible(open.isEmpty());
+        GridColumns.updateGridHeight(allDeliveryGrid);
     }
     private void configureDeliveryGrid(Grid<Delivery> grid) {
         grid.addColumn(d -> d.getDeliveryDate().format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))).setHeader("Дата");
         grid.addColumn(d -> d.getDeliveryTime().format(DateTimeFormatter.ofPattern("HH:mm"))).setHeader("Время");
         grid.addColumn(d -> d.getCustomer().getName()).setHeader("Клиент").setFlexGrow(2);
-        grid.addColumn(d -> ru.sklad.app.util.PhoneFields.format(d.getCustomer().getPhone())).setHeader("Телефон");
+        grid.addColumn(d -> ru.sklad.app.util.PhoneFields.display(d.getCustomer().getPhone())).setHeader("Телефон");
         grid.addColumn(d -> money(d.getTotalSum())).setHeader("Сумма");
         grid.addComponentColumn(d -> {
             Span badge = new Span(d.getStatus());
@@ -129,6 +232,7 @@ public class DeliveriesView extends VerticalLayout {
         });
     }
     private void refresh() {
+        refreshOpenDeliveries();
         // Count the same rows that are displayed, including when another date is selected.
         List<Delivery> current = selectedDate.isInvalid() ? List.of() : service.list(selectedDate.getValue()).stream()
                 .filter(d -> "Новая".equals(d.getStatus())).toList();
@@ -232,7 +336,7 @@ public class DeliveriesView extends VerticalLayout {
             name.setVisible(selected == null);
             address.setReadOnly(selected != null); phone.setReadOnly(selected != null);
             address.setValue(selected == null ? "" : selected.getAddress());
-            phone.setValue(selected == null ? "" : ru.sklad.app.util.PhoneFields.format(selected.getPhone()));
+            phone.setValue(selected == null ? "" : ru.sklad.app.util.PhoneFields.display(selected.getPhone()));
         });
         DatePicker date = new DatePicker("Дата доставки", existing == null
                 ? Objects.requireNonNullElse(selectedDate.getValue(), LocalDate.now()) : existing.getDeliveryDate());
